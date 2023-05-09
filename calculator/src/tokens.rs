@@ -13,6 +13,7 @@ pub enum Token {
     OpenBrace,
     CloseBrace,
     Comma,
+    SemiColon,
     // Operators
     Plus,
     Minus,
@@ -49,6 +50,7 @@ impl fmt::Display for Token {
             Token::OpenBrace => write!(fmt, "{{"),
             Token::CloseBrace => write!(fmt, "}}"),
             Token::Comma => write!(fmt, ","),
+            Token::SemiColon => write!(fmt, ";"),
             Token::Equal => write!(fmt, "="),
             Token::LessThan => write!(fmt, "<"),
             Token::GreaterThan => write!(fmt, "^>"),

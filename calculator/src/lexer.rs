@@ -38,6 +38,8 @@ impl Lexer {
                 '/' => Token::Divide,
                 '^' => Token::Power,
                 ',' => Token::Comma,
+                '=' => Token::Equal,
+                ';' => Token::SemiColon,
                 '(' => Token::OpenParenthesis,
                 ')' => Token::CloseParenthesis,
                 '[' => Token::OpenBracket,
@@ -77,7 +79,15 @@ impl Lexer {
                     self.position -= 1;
                     self.read_name()
                 }
-                _ => Token::Illegal(format!("Unexpected character: {}", ch)),
+                '"' => {
+                    let text = self.read_name();
+                    if self.read_next_char() != Some(&'"') {
+                        Token::Illegal("Unexpected character. Expected '\"'".to_string())
+                    } else {
+                        Token::StringLiteral(text.to_string())
+                    }
+                }
+                _ => Token::Illegal(format!("Unexpected character: '{}'", ch)),
             },
             None => Token::EoI,
         }

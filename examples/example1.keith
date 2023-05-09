@@ -1,1 +1,1 @@
-Plot(Sin(x)*x, {x, -1, 1})
+Plot(Sin(x)*x, {x, -1, 1});

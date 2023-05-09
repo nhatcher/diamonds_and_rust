@@ -88,10 +88,6 @@ pub struct CompareNode {
 pub enum ExpressionNode {
     Number(f64),
     Variable(String),
-    Function {
-        index: Function,
-        arg: Box<ExpressionNode>,
-    },
     BinaryOp {
         op: Operator,
         left: Box<ExpressionNode>,
@@ -102,7 +98,7 @@ pub enum ExpressionNode {
         right: Box<ExpressionNode>,
     },
     FunctionCall {
-        index: Function,
+        name: String,
         args: Vec<ExpressionNode>,
     },
     IfExpression {
@@ -193,6 +189,7 @@ impl Parser {
         let mut statements = Vec::new();
         while self.next_token != Token::EoI {
             statements.push(self.parse_statement()?);
+            self.expect_token(Token::SemiColon)?;
         }
         Ok(ProgramNode { statements })
     }
@@ -211,6 +208,7 @@ impl Parser {
                 let mut arguments = Vec::new();
                 if let Token::Name(variable) = &self.next_token {
                     arguments.push(variable.to_string());
+                    self.advance_tokens();
                 } else {
                     self.expect_token(Token::CloseParenthesis)?;
                     let value = self.parse_expression(0)?;
@@ -332,6 +330,7 @@ impl Parser {
         if let Token::Name(name) = &self.next_token {
             if name == "color" {
                 self.advance_tokens();
+                self.expect_token(Token::Equal)?;
                 if let Token::StringLiteral(color) = self.next_token.clone() {
                     self.advance_tokens();
                     options.color = color;
@@ -339,6 +338,7 @@ impl Parser {
                 }
             } else if name == "width" {
                 self.advance_tokens();
+                self.expect_token(Token::Equal)?;
                 if let Token::Number(width) = self.next_token.clone() {
                     options.width = width as u32;
                     return Ok(());
@@ -365,6 +365,7 @@ impl Parser {
                     self.add_option(&mut options)?;
                 }
             }
+            self.expect_token(Token::CloseBrace)?;
             Ok(PlotFunctionNode { value, options })
         } else {
             let value = self.parse_expression(0)?;
@@ -380,7 +381,7 @@ impl Parser {
         loop {
             let op = match &self.next_token {
                 Token::EoI => break,
-                Token::Comma | Token::CloseBrace | Token::CloseBracket | Token::CloseParenthesis=> break,
+                Token::Comma | Token::CloseBrace | Token::CloseBracket | Token::CloseParenthesis | Token::SemiColon => break,
                 Token::Plus => Operator::Plus,
                 Token::Minus => Operator::Minus,
                 Token::Times => Operator::Times,
@@ -472,35 +473,17 @@ impl Parser {
                     return Ok(ExpressionNode::Variable(name));
                 }
                 self.advance_tokens();
-                let argument = self.parse_expression(0)?;
-
-                if self.next_token != Token::CloseParenthesis {
-                    return Err(ParserError {
-                        position: self.lexer.get_position(),
-                        message: "Expecting: ')'".to_string(),
-                    }
-                    .into());
+                let mut arguments = Vec::new();
+                arguments.push(self.parse_expression(0)?);
+                while self.next_token == Token::Comma {
+                    self.advance_tokens();
+                    arguments.push(self.parse_expression(0)?);
                 }
-                self.advance_tokens();
+                self.expect_token(Token::CloseParenthesis)?;
 
-                let index = match name.as_str() {
-                    "Cos" => Function::Cos,
-                    "Sin" => Function::Sin,
-                    "Tan" => Function::Tan,
-                    "Log" => Function::Log,
-                    "Exp" => Function::Exp,
-                    "Compile" => Function::Compile,
-                    _ => {
-                        return Err(ParserError {
-                            position: self.lexer.get_position(),
-                            message: format!("Invalid function name: '{}'", name),
-                        }
-                        .into());
-                    }
-                };
-                Ok(ExpressionNode::Function {
-                    index,
-                    arg: Box::new(argument),
+                Ok(ExpressionNode::FunctionCall {
+                    name,
+                    args: arguments,
                 })
             }
             Token::OpenParenthesis => {
@@ -533,6 +516,7 @@ impl Parser {
             Token::GreaterThan => todo!(),
             Token::LessThanOrEqual => todo!(),
             Token::GreaterThanOrEqual => todo!(),
+            Token::SemiColon => todo!(),
         }
     }
 }
