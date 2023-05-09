@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<head>
+<title>WebAssembly utilities</title>
+<script>
+
+const bytesToString = (bytes) => {
+    const r = [];
+    for (var i = 0; i < bytes.length; i++) {
+        r.push(`0x${bytes[i].toString(16).padStart(2, '0')}`);
+    }
+    return r;
+}
+
+const bytesToBinaryString = (bytes) => {
+    const r = [];
+    for (var i = 0; i < bytes.length; i++) {
+        r.push(`${bytes[i].toString(2).padStart(8, '0')}`);
+    }
+    return r;
+}
+
+const stringToUtf8Bytes = (s) => {
+    const textEncoder = new TextEncoder();
+    const bytes = textEncoder.encode(s);
+    return bytes;
+}
+
+const doubleToLittleEndianBytes = (f) => {
+    const buffer = new ArrayBuffer(8);
+    (new Float64Array(buffer))[0] = f;
+    const bytes = new Uint8Array(buffer);
+    return bytes;
+}
+
+window.addEventListener('load', () => { 
+    const double = document.getElementById('double');
+    const doubleBytePattern = document.getElementById('double-byte-pattern');
+    const doubleBitPattern = document.getElementById('double-bit-pattern');
+    double.addEventListener('change', (event) => {
+        try {
+            const value = parseFloat(event.target.value);
+            const bytes = doubleToLittleEndianBytes(value);
+            doubleBytePattern.innerText = bytesToString(bytes);
+            doubleBitPattern.innerText = bytesToBinaryString(bytes);
+        } catch (e) {
+            console.error(e);
+        }
+    });
+});
+
+</script>
+</head>
+<body>
+
+<!-- Floating point numbers -->
+<div>
+    <div><span>Double number (f64): </span><input id="double"/></div>
+    <div><span>Bit pattern (little endian): </span><span id="double-bit-pattern"></span></div>
+    <div><span>Bytes (little endian): </span> <span id="double-byte-pattern"></span></div>
+</div>
+
+<!-- LEB128 -->
+<div>
+    <div><span>Integer (i32): </span><input id="integer"/></div>
+    <div><span>LEB128 encoding: </span><span id="integer-leb128-encoding"></span></div>
+</div>
+
+<!-- Unicode (utf8) -->
+<div>
+    <div><span>String</span><input id="text"/></div>
+    <div><span>utf-8 encoding:</span><span id="text-utf8-encoding"></span></div>
+</div>
+
+</body>
+</html>
