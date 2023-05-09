@@ -60,7 +60,7 @@ pub struct PlotFunctionNode {
 pub enum StatementNode {
     ConstantAssignment {
         name: String,
-        value: Box<ExpressionNode>,
+        value: ExpressionNode,
     },
     Slider {
         name: String,
@@ -208,17 +208,42 @@ impl Parser {
             if self.next_token == Token::OpenParenthesis {
                 // function definition
                 self.advance_tokens();
-                self.parse_function_definition()
+                let mut arguments = Vec::new();
+                if let Token::Name(variable) = &self.next_token {
+                    arguments.push(variable.to_string());
+                } else {
+                    self.expect_token(Token::CloseParenthesis)?;
+                    let value = self.parse_expression(0)?;
+                    return Ok(StatementNode::FunctionDeclaration { arguments: Vec::new(), value: Box::new(value) });
+                }
+                while self.next_token == Token::Comma {
+                    self.advance_tokens();
+                    if let Token::Name(variable) = &self.next_token {
+                        arguments.push(variable.to_string());
+                    }   
+                }
+                self.expect_token(Token::CloseParenthesis)?;
+                self.expect_token(Token::Equal)?;
+                let value = self.parse_expression(0)?;
+
+                Ok(StatementNode::FunctionDeclaration { arguments, value: Box::new(value) })
             } else if self.next_token == Token::Equal {
                 // variable or slider
                 self.advance_tokens();
                 if self.next_token == Token::OpenBrace {
-                    self.parse_slider()
+                    let default_value = self.parse_number()?;
+                    self.expect_token(Token::Comma)?;
+                    let minimum_value = self.parse_number()?;
+                    self.expect_token(Token::Comma)?;
+                    let maximum_value = self.parse_number()?;
+                    self.expect_token(Token::CloseBrace)?;
+
+                    return Ok(StatementNode::Slider { name, default_value, minimum_value, maximum_value  });
                 } else {
-                    let expression = self.parse_expression(0)?;
+                    let value = self.parse_expression(0)?;
                     return Ok(StatementNode::ConstantAssignment {
                         name,
-                        value: Box::new(expression),
+                        value,
                     });
                 }
             } else {
@@ -237,16 +262,16 @@ impl Parser {
         }
     }
 
-    fn parse_function_definition(&mut self) -> Result<StatementNode> {
-        todo!()
-    }
-
-    fn parse_variable_definition(&mut self) -> Result<StatementNode> {
-        todo!()
-    }
-
-    fn parse_slider(&mut self) -> Result<StatementNode> {
-        todo!()
+    fn parse_number(&mut self) -> Result<f64> {
+        if let Token::Number(f) = self.next_token {
+            Ok(f)
+        } else {
+            Err(ParserError {
+                position: self.lexer.get_position(),
+                message: format!("Unexpected token '{}'", self.next_token),
+            }
+            .into())
+        }
     }
 
     fn parse_plot_statement(&mut self) -> Result<StatementNode> {
@@ -289,7 +314,18 @@ impl Parser {
     }
 
     fn parse_range(&mut self) -> Result<Range> {
-        todo!()
+        self.expect_token(Token::OpenBrace)?;
+        let value = self.parse_expression(0)?;
+        
+        self.expect_token(Token::Comma)?;
+        let minimum = self.parse_expression(0)?;
+        
+        self.expect_token(Token::Comma)?;
+        let maximum = self.parse_expression(0)?;
+        
+        self.expect_token(Token::CloseBrace)?;
+
+        Ok(Range{ value, minimum, maximum })
     }
 
     fn add_option(&mut self, options: &mut Options) -> Result<()> {
@@ -344,7 +380,7 @@ impl Parser {
         loop {
             let op = match &self.next_token {
                 Token::EoI => break,
-                Token::CloseParenthesis => break,
+                Token::Comma | Token::CloseBrace | Token::CloseBracket | Token::CloseParenthesis=> break,
                 Token::Plus => Operator::Plus,
                 Token::Minus => Operator::Minus,
                 Token::Times => Operator::Times,

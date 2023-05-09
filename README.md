@@ -199,8 +199,6 @@ pub enum StatementNode {
 
 You can see the whole list (here)[].
 
-
-
 ## Binary WebAssembly, the theoretical minimum
 
 Since our target language is WebAssembly we need to know a little bit about the language.
@@ -391,7 +389,7 @@ There are opcodes for all types of operations. We have learned two binary opcode
 
 Let's do a function that given a number `x` computes `add_powers(x) = Sum(x^n, {n, 1, 100})`. We will need to learn two new things, making a loop and local variables
 
-### WebAssembly cheatset
+### WebAssembly cheat sheet
 
 Section codes
 
@@ -402,6 +400,11 @@ Operation codes
 ## The one with the compiler
 
 ## Putting it altogether. A solid frontend
+
+
+## Exercises
+
+1. Add comments. Note that comments are ignored by the compiler. You can add single line comments or multiline comments. Maybe C style /* and closed by */ or C++ // or like Smalltalk just using quotes or Perl/Python style using `#` at the beginning, your call!
 
 ## References
 

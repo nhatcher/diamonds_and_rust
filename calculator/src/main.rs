@@ -4,32 +4,36 @@ mod lexer;
 mod parser;
 mod tokens;
 
-// use crate::evaluate::evaluate;
-use std::io::{stdin, stdout, Write};
+use std::{env, fs};
 
-fn evaluate(input: &str) -> String {
-    input.to_string()
+use parser::ProgramNode;
+
+use crate::parser::Parser;
+
+// use crate::evaluate::evaluate;
+
+fn emit_code(node: &ProgramNode) -> Result<Vec<u8>, String> {
+    Ok(vec![])
 }
 
 fn main() {
-    loop {
-        let mut input = String::new();
-        print!("Input: ");
-        let _ = stdout().flush();
-        stdin()
-            .read_line(&mut input)
-            .expect("Failed reading command");
-        input = input.trim().to_string();
-
-        if input == ".exit" {
-            println!("Bye!");
-            break;
-        }
-        println!("Output: {}", evaluate(&input));
-
-        // match evaluate(&input) {
-        //     Ok(f) => println!("Output: {}", f),
-        //     Err(error) => println!("Error: {:?}", error),
-        // }
+    let args: Vec<String> = env::args().collect();
+    let arg_count = args.len();
+    if arg_count < 2 {
+        panic!("Usage keithc program.keith");
     }
+    let file_path = &args[1];
+    println!("In file {}", file_path);
+
+    let contents = fs::read_to_string(file_path)
+        .expect("Filed reading file");
+
+    match Parser::parse(&contents) {
+        Ok(node) => {
+            let code = emit_code(&node).expect("msg");
+            println!("Suck Sex!");
+        }
+        Err(error) => println!("Failed: {:?}", error)
+    }
+
 }

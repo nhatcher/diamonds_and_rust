@@ -37,6 +37,7 @@ impl Lexer {
                 '*' => Token::Times,
                 '/' => Token::Divide,
                 '^' => Token::Power,
+                ',' => Token::Comma,
                 '(' => Token::OpenParenthesis,
                 ')' => Token::CloseParenthesis,
                 '[' => Token::OpenBracket,

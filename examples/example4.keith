@@ -1,0 +1,6 @@
+b = 10
+a = {5, 1, b}
+f(x) = x*x*a
+g(x, y) = f(x)*f(y*x)
+h(x) = Sum(g(n/b), {n, 1, b})
+Plot([{If(x>0, h(x), -h(x)), color="red", width=2}], {x, -5, 5})

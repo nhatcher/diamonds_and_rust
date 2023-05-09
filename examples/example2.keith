@@ -1,0 +1,3 @@
+f(x) = Sin(x)*x
+g(x) = Cos(x)*x
+Plot([f(x), g(x)], {x, -1, 1})
