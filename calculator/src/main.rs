@@ -25,15 +25,13 @@ fn main() {
     let file_path = &args[1];
     println!("In file {}", file_path);
 
-    let contents = fs::read_to_string(file_path)
-        .expect("Filed reading file");
+    let contents = fs::read_to_string(file_path).expect("Filed reading file");
 
     match Parser::parse(&contents) {
         Ok(node) => {
             let code = emit_code(&node).expect("msg");
             println!("Suck Sex!");
         }
-        Err(error) => println!("Failed: {:?}", error)
+        Err(error) => println!("Failed: {:?}", error),
     }
-
 }

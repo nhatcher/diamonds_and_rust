@@ -212,19 +212,25 @@ impl Parser {
                 } else {
                     self.expect_token(Token::CloseParenthesis)?;
                     let value = self.parse_expression(0)?;
-                    return Ok(StatementNode::FunctionDeclaration { arguments: Vec::new(), value: Box::new(value) });
+                    return Ok(StatementNode::FunctionDeclaration {
+                        arguments: Vec::new(),
+                        value: Box::new(value),
+                    });
                 }
                 while self.next_token == Token::Comma {
                     self.advance_tokens();
                     if let Token::Name(variable) = &self.next_token {
                         arguments.push(variable.to_string());
-                    }   
+                    }
                 }
                 self.expect_token(Token::CloseParenthesis)?;
                 self.expect_token(Token::Equal)?;
                 let value = self.parse_expression(0)?;
 
-                Ok(StatementNode::FunctionDeclaration { arguments, value: Box::new(value) })
+                Ok(StatementNode::FunctionDeclaration {
+                    arguments,
+                    value: Box::new(value),
+                })
             } else if self.next_token == Token::Equal {
                 // variable or slider
                 self.advance_tokens();
@@ -236,13 +242,15 @@ impl Parser {
                     let maximum_value = self.parse_number()?;
                     self.expect_token(Token::CloseBrace)?;
 
-                    return Ok(StatementNode::Slider { name, default_value, minimum_value, maximum_value  });
+                    return Ok(StatementNode::Slider {
+                        name,
+                        default_value,
+                        minimum_value,
+                        maximum_value,
+                    });
                 } else {
                     let value = self.parse_expression(0)?;
-                    return Ok(StatementNode::ConstantAssignment {
-                        name,
-                        value,
-                    });
+                    return Ok(StatementNode::ConstantAssignment { name, value });
                 }
             } else {
                 Err(ParserError {
@@ -314,16 +322,20 @@ impl Parser {
     fn parse_range(&mut self) -> Result<Range> {
         self.expect_token(Token::OpenBrace)?;
         let value = self.parse_expression(0)?;
-        
+
         self.expect_token(Token::Comma)?;
         let minimum = self.parse_expression(0)?;
-        
+
         self.expect_token(Token::Comma)?;
         let maximum = self.parse_expression(0)?;
-        
+
         self.expect_token(Token::CloseBrace)?;
 
-        Ok(Range{ value, minimum, maximum })
+        Ok(Range {
+            value,
+            minimum,
+            maximum,
+        })
     }
 
     fn add_option(&mut self, options: &mut Options) -> Result<()> {
@@ -381,7 +393,11 @@ impl Parser {
         loop {
             let op = match &self.next_token {
                 Token::EoI => break,
-                Token::Comma | Token::CloseBrace | Token::CloseBracket | Token::CloseParenthesis | Token::SemiColon => break,
+                Token::Comma
+                | Token::CloseBrace
+                | Token::CloseBracket
+                | Token::CloseParenthesis
+                | Token::SemiColon => break,
                 Token::Plus => Operator::Plus,
                 Token::Minus => Operator::Minus,
                 Token::Times => Operator::Times,
