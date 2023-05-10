@@ -11,6 +11,18 @@ pub enum Operator {
     Power,
 }
 
+impl Display for Operator {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Operator::Plus => write!(fmt, "+"),
+            Operator::Minus => write!(fmt, "-"),
+            Operator::Times => write!(fmt, "*"),
+            Operator::Divide => write!(fmt, "/"),
+            Operator::Power => write!(fmt, "^"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Comparator {
     Equal,
@@ -18,6 +30,18 @@ pub enum Comparator {
     GreaterThan,
     LessThanOrEqual,
     GreaterThanOrEqual,
+}
+
+impl Display for Comparator {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Comparator::Equal => write!(fmt, "="),
+            Comparator::LessThan => write!(fmt, "<"),
+            Comparator::GreaterThan => write!(fmt, ">"),
+            Comparator::LessThanOrEqual => write!(fmt, "<="),
+            Comparator::GreaterThanOrEqual => write!(fmt, ">="),
+        }
+    }
 }
 
 pub struct Options {
@@ -145,6 +169,15 @@ impl error::Error for LexerError {}
 pub enum UnaryOperator {
     Plus,
     Minus,
+}
+
+impl Display for UnaryOperator {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            UnaryOperator::Plus => write!(fmt, "+"),
+            UnaryOperator::Minus => write!(fmt, "-"),
+        }
+    }
 }
 
 pub struct Parser {
@@ -376,25 +409,24 @@ impl Parser {
 
     fn add_option(&mut self, options: &mut Options) -> Result<()> {
         match self.parse_name()?.as_str() {
-         "color" => {
-            self.expect_token(Token::Equal)?;
-            let color = self.parse_string_literal()?;
-            options.color = color;
-            Ok(())
-        },
-        "width" => {
-            self.expect_token(Token::Equal)?;
-            let width = self.parse_number()? as u32;
-            options.width = width;
-            Ok(())
-        },
-        name => Err(ParserError {
-            position: self.lexer.get_position(),
-            message: format!("Unexpected option name: '{name}'"),
+            "color" => {
+                self.expect_token(Token::Equal)?;
+                let color = self.parse_string_literal()?;
+                options.color = color;
+                Ok(())
+            }
+            "width" => {
+                self.expect_token(Token::Equal)?;
+                let width = self.parse_number()? as u32;
+                options.width = width;
+                Ok(())
+            }
+            name => Err(ParserError {
+                position: self.lexer.get_position(),
+                message: format!("Unexpected option name: '{name}'"),
+            }
+            .into()),
         }
-        .into())
-    }
-    
     }
 
     fn parse_plot_function(&mut self) -> Result<PlotFunctionNode> {

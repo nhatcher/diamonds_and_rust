@@ -1,4 +1,6 @@
-use crate::parser::{CompareNode, ExpressionNode, ProgramNode, Range, StatementNode};
+use crate::parser::{
+    CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, Range, StatementNode,
+};
 
 pub(crate) fn pretty_print(node: &ProgramNode) -> String {
     let mut str = "".to_string();
@@ -35,18 +37,28 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                 functions,
                 x_range,
                 y_range,
-            } => match y_range {
-                Some(y) => str.push_str(&format!(
-                    "Plot(.., {}, {})",
-                    pretty_print_range(x_range),
-                    pretty_print_range(y)
-                )),
-                None => str.push_str(&format!("Plot(.., {})", pretty_print_range(x_range))),
-            },
+            } => {
+                let fun_str: Vec<String> = functions.iter().map(pretty_print_function).collect();
+                let fun_str = fun_str.join(",");
+                match y_range {
+                    Some(y) => str.push_str(&format!(
+                        "Plot({fun_str}, {}, {})",
+                        pretty_print_range(x_range),
+                        pretty_print_range(y)
+                    )),
+                    None => {
+                        str.push_str(&format!("Plot({fun_str}, {})", pretty_print_range(x_range)))
+                    }
+                }
+            }
         }
         str.push('\n');
     });
     str
+}
+
+fn pretty_print_function(node: &PlotFunctionNode) -> String {
+    format!("{{ {} }}", pretty_print_expression(&node.value))
 }
 
 fn pretty_print_expression(node: &ExpressionNode) -> String {
@@ -55,14 +67,14 @@ fn pretty_print_expression(node: &ExpressionNode) -> String {
         ExpressionNode::Variable(s) => s.to_string(),
         ExpressionNode::BinaryOp { op, left, right } => {
             format!(
-                "{}{:?}{}",
+                "{}{}{}",
                 pretty_print_expression(left),
                 op,
                 pretty_print_expression(right)
             )
         }
         ExpressionNode::UnaryOp { op, right } => {
-            format!("{:?}{}", op, pretty_print_expression(right))
+            format!("{}{}", op, pretty_print_expression(right))
         }
         ExpressionNode::FunctionCall { name, args } => {
             let arguments: Vec<String> = args.iter().map(pretty_print_expression).collect();
@@ -104,7 +116,7 @@ fn pretty_print_range(node: &Range) -> String {
 
 fn pretty_print_condition(node: &CompareNode) -> String {
     format!(
-        "{}{:?}{}",
+        "{}{}{}",
         pretty_print_expression(&node.left),
         node.op,
         pretty_print_expression(&node.right)
