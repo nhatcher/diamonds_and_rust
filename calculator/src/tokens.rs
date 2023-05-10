@@ -53,7 +53,7 @@ impl fmt::Display for Token {
             Token::SemiColon => write!(fmt, ";"),
             Token::Equal => write!(fmt, "="),
             Token::LessThan => write!(fmt, "<"),
-            Token::GreaterThan => write!(fmt, "^>"),
+            Token::GreaterThan => write!(fmt, ">"),
             Token::LessThanOrEqual => write!(fmt, "<="),
             Token::GreaterThanOrEqual => write!(fmt, ">="),
             Token::StringLiteral(s) => write!(fmt, "{}", s),

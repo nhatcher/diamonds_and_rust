@@ -405,6 +405,7 @@ Operation codes
 ## Exercises
 
 1. Add comments. Note that comments are ignored by the compiler. You can add single line comments or multiline comments. Maybe C style /* and closed by */ or C++ // or like Smalltalk just using quotes or Perl/Python style using `#` at the beginning, your call!
+2. Create a vscode plugin for Keith!
 
 ## References
 

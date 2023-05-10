@@ -3,16 +3,6 @@ use std::{error, fmt::Display};
 use crate::{lexer::Lexer, tokens::Token};
 
 #[derive(Debug)]
-pub enum Function {
-    Cos,
-    Sin,
-    Tan,
-    Log,
-    Exp,
-    Compile,
-}
-
-#[derive(Debug)]
 pub enum Operator {
     Plus,
     Minus,
@@ -20,6 +10,8 @@ pub enum Operator {
     Divide,
     Power,
 }
+
+#[derive(Debug)]
 pub enum Comparator {
     Equal,
     LessThan,
@@ -47,14 +39,14 @@ pub struct ProgramNode {
 }
 
 pub struct Range {
-    value: ExpressionNode,
-    minimum: ExpressionNode,
-    maximum: ExpressionNode,
+    pub value: ExpressionNode,
+    pub minimum: ExpressionNode,
+    pub maximum: ExpressionNode,
 }
 
 pub struct PlotFunctionNode {
-    value: ExpressionNode,
-    options: Options,
+    pub value: ExpressionNode,
+    pub options: Options,
 }
 
 pub enum StatementNode {
@@ -64,13 +56,14 @@ pub enum StatementNode {
     },
     Slider {
         name: String,
-        default_value: f64,
-        minimum_value: f64,
-        maximum_value: f64,
+        default_value: ExpressionNode,
+        minimum_value: ExpressionNode,
+        maximum_value: ExpressionNode,
     },
     FunctionDeclaration {
+        name: String,
         arguments: Vec<String>,
-        value: Box<ExpressionNode>,
+        value: ExpressionNode,
     },
     PlotStatement {
         functions: Vec<PlotFunctionNode>,
@@ -80,9 +73,15 @@ pub enum StatementNode {
 }
 
 pub struct CompareNode {
-    op: Comparator,
-    left: Box<ExpressionNode>,
-    right: Box<ExpressionNode>,
+    pub op: Comparator,
+    pub left: Box<ExpressionNode>,
+    pub right: Box<ExpressionNode>,
+}
+
+pub struct SumRange {
+    pub variable_name: String,
+    pub lower: Box<ExpressionNode>,
+    pub upper: Box<ExpressionNode>,
 }
 
 pub enum ExpressionNode {
@@ -105,6 +104,10 @@ pub enum ExpressionNode {
         condition: CompareNode,
         if_true: Box<ExpressionNode>,
         if_false: Box<ExpressionNode>,
+    },
+    SumExpression {
+        value: Box<ExpressionNode>,
+        range: SumRange,
     },
 }
 
@@ -177,7 +180,7 @@ impl Parser {
         if self.next_token != token {
             return Err(ParserError {
                 position: self.lexer.get_position(),
-                message: format!("Expected {} but got {}", self.next_token, token),
+                message: format!("Expected {} but got {}", token, self.next_token),
             }
             .into());
         }
@@ -211,35 +214,39 @@ impl Parser {
                     self.advance_tokens();
                 } else {
                     self.expect_token(Token::CloseParenthesis)?;
-                    let value = self.parse_expression(0)?;
+                    let value = self.parse_expression()?;
                     return Ok(StatementNode::FunctionDeclaration {
+                        name,
                         arguments: Vec::new(),
-                        value: Box::new(value),
+                        value,
                     });
                 }
                 while self.next_token == Token::Comma {
                     self.advance_tokens();
                     if let Token::Name(variable) = &self.next_token {
                         arguments.push(variable.to_string());
+                        self.advance_tokens();
                     }
                 }
                 self.expect_token(Token::CloseParenthesis)?;
                 self.expect_token(Token::Equal)?;
-                let value = self.parse_expression(0)?;
+                let value = self.parse_expression()?;
 
                 Ok(StatementNode::FunctionDeclaration {
+                    name,
                     arguments,
-                    value: Box::new(value),
+                    value,
                 })
             } else if self.next_token == Token::Equal {
                 // variable or slider
                 self.advance_tokens();
                 if self.next_token == Token::OpenBrace {
-                    let default_value = self.parse_number()?;
+                    self.advance_tokens();
+                    let default_value = self.parse_expression()?;
                     self.expect_token(Token::Comma)?;
-                    let minimum_value = self.parse_number()?;
+                    let minimum_value = self.parse_expression()?;
                     self.expect_token(Token::Comma)?;
-                    let maximum_value = self.parse_number()?;
+                    let maximum_value = self.parse_expression()?;
                     self.expect_token(Token::CloseBrace)?;
 
                     return Ok(StatementNode::Slider {
@@ -249,7 +256,7 @@ impl Parser {
                         maximum_value,
                     });
                 } else {
-                    let value = self.parse_expression(0)?;
+                    let value = self.parse_expression()?;
                     return Ok(StatementNode::ConstantAssignment { name, value });
                 }
             } else {
@@ -268,8 +275,37 @@ impl Parser {
         }
     }
 
+    fn parse_name(&mut self) -> Result<String> {
+        if let Token::Name(s) = &self.next_token {
+            let name = s.to_string();
+            self.advance_tokens();
+            Ok(name)
+        } else {
+            Err(ParserError {
+                position: self.lexer.get_position(),
+                message: format!("Unexpected token '{}'", self.next_token),
+            }
+            .into())
+        }
+    }
+
+    fn parse_string_literal(&mut self) -> Result<String> {
+        if let Token::StringLiteral(s) = &self.next_token {
+            let name = s.to_string();
+            self.advance_tokens();
+            Ok(name)
+        } else {
+            Err(ParserError {
+                position: self.lexer.get_position(),
+                message: format!("Unexpected token '{}'", self.next_token),
+            }
+            .into())
+        }
+    }
+
     fn parse_number(&mut self) -> Result<f64> {
         if let Token::Number(f) = self.next_token {
+            self.advance_tokens();
             Ok(f)
         } else {
             Err(ParserError {
@@ -321,13 +357,13 @@ impl Parser {
 
     fn parse_range(&mut self) -> Result<Range> {
         self.expect_token(Token::OpenBrace)?;
-        let value = self.parse_expression(0)?;
+        let value = self.parse_expression()?;
 
         self.expect_token(Token::Comma)?;
-        let minimum = self.parse_expression(0)?;
+        let minimum = self.parse_expression()?;
 
         self.expect_token(Token::Comma)?;
-        let maximum = self.parse_expression(0)?;
+        let maximum = self.parse_expression()?;
 
         self.expect_token(Token::CloseBrace)?;
 
@@ -339,35 +375,32 @@ impl Parser {
     }
 
     fn add_option(&mut self, options: &mut Options) -> Result<()> {
-        if let Token::Name(name) = &self.next_token {
-            if name == "color" {
-                self.advance_tokens();
-                self.expect_token(Token::Equal)?;
-                if let Token::StringLiteral(color) = self.next_token.clone() {
-                    self.advance_tokens();
-                    options.color = color;
-                    return Ok(());
-                }
-            } else if name == "width" {
-                self.advance_tokens();
-                self.expect_token(Token::Equal)?;
-                if let Token::Number(width) = self.next_token.clone() {
-                    options.width = width as u32;
-                    return Ok(());
-                }
-            }
-        }
-        Err(ParserError {
+        match self.parse_name()?.as_str() {
+         "color" => {
+            self.expect_token(Token::Equal)?;
+            let color = self.parse_string_literal()?;
+            options.color = color;
+            Ok(())
+        },
+        "width" => {
+            self.expect_token(Token::Equal)?;
+            let width = self.parse_number()? as u32;
+            options.width = width;
+            Ok(())
+        },
+        name => Err(ParserError {
             position: self.lexer.get_position(),
-            message: format!("Unexpected token '{}'", self.next_token),
+            message: format!("Unexpected option name: '{name}'"),
         }
         .into())
+    }
+    
     }
 
     fn parse_plot_function(&mut self) -> Result<PlotFunctionNode> {
         if self.next_token == Token::OpenBrace {
             self.advance_tokens();
-            let value = self.parse_expression(0)?;
+            let value = self.parse_expression()?;
             let mut options = Options::default();
             if self.next_token == Token::Comma {
                 self.advance_tokens();
@@ -380,7 +413,7 @@ impl Parser {
             self.expect_token(Token::CloseBrace)?;
             Ok(PlotFunctionNode { value, options })
         } else {
-            let value = self.parse_expression(0)?;
+            let value = self.parse_expression()?;
             Ok(PlotFunctionNode {
                 value,
                 options: Options::default(),
@@ -388,16 +421,25 @@ impl Parser {
         }
     }
 
-    fn parse_expression(&mut self, min_bp: u8) -> Result<ExpressionNode> {
+    fn parse_expression(&mut self) -> Result<ExpressionNode> {
+        self.parse_expression_bp(0)
+    }
+
+    fn parse_expression_bp(&mut self, min_bp: u8) -> Result<ExpressionNode> {
         let mut lhs = self.parse_primary()?;
         loop {
             let op = match &self.next_token {
-                Token::EoI => break,
-                Token::Comma
+                Token::EoI
+                | Token::Comma
                 | Token::CloseBrace
                 | Token::CloseBracket
                 | Token::CloseParenthesis
-                | Token::SemiColon => break,
+                | Token::SemiColon
+                | Token::LessThan
+                | Token::LessThanOrEqual
+                | Token::Equal
+                | Token::GreaterThan
+                | Token::GreaterThanOrEqual => break,
                 Token::Plus => Operator::Plus,
                 Token::Minus => Operator::Minus,
                 Token::Times => Operator::Times,
@@ -421,7 +463,7 @@ impl Parser {
             }
 
             self.advance_tokens();
-            let rhs = self.parse_expression(l_bp)?;
+            let rhs = self.parse_expression_bp(l_bp)?;
 
             lhs = ExpressionNode::BinaryOp {
                 op,
@@ -489,22 +531,61 @@ impl Parser {
                     return Ok(ExpressionNode::Variable(name));
                 }
                 self.advance_tokens();
-                let mut arguments = Vec::new();
-                arguments.push(self.parse_expression(0)?);
-                while self.next_token == Token::Comma {
-                    self.advance_tokens();
-                    arguments.push(self.parse_expression(0)?);
-                }
-                self.expect_token(Token::CloseParenthesis)?;
+                if name == "If" {
+                    let left = Box::new(self.parse_expression()?);
+                    let op = self.parse_comparator()?;
+                    let right = Box::new(self.parse_expression()?);
 
-                Ok(ExpressionNode::FunctionCall {
-                    name,
-                    args: arguments,
-                })
+                    self.expect_token(Token::Comma)?;
+                    let if_true = Box::new(self.parse_expression()?);
+
+                    self.expect_token(Token::Comma)?;
+                    let if_false = Box::new(self.parse_expression()?);
+
+                    self.expect_token(Token::CloseParenthesis)?;
+
+                    Ok(ExpressionNode::IfExpression {
+                        condition: CompareNode { op, left, right },
+                        if_true,
+                        if_false,
+                    })
+                } else if name == "Sum" {
+                    let value = Box::new(self.parse_expression()?);
+                    self.expect_token(Token::Comma)?;
+                    self.expect_token(Token::OpenBrace)?;
+                    let variable_name = self.parse_name()?;
+                    self.expect_token(Token::Comma)?;
+                    let lower = Box::new(self.parse_expression()?);
+                    self.expect_token(Token::Comma)?;
+                    let upper = Box::new(self.parse_expression()?);
+                    self.expect_token(Token::CloseBrace)?;
+                    self.expect_token(Token::CloseParenthesis)?;
+                    Ok(ExpressionNode::SumExpression {
+                        value,
+                        range: SumRange {
+                            variable_name,
+                            lower,
+                            upper,
+                        },
+                    })
+                } else {
+                    let mut arguments = Vec::new();
+                    arguments.push(self.parse_expression()?);
+                    while self.next_token == Token::Comma {
+                        self.advance_tokens();
+                        arguments.push(self.parse_expression()?);
+                    }
+                    self.expect_token(Token::CloseParenthesis)?;
+
+                    Ok(ExpressionNode::FunctionCall {
+                        name,
+                        args: arguments,
+                    })
+                }
             }
             Token::OpenParenthesis => {
                 self.advance_tokens();
-                let primary = self.parse_expression(0)?;
+                let primary = self.parse_expression()?;
                 if self.next_token != Token::CloseParenthesis {
                     return Err(ParserError {
                         position: self.lexer.get_position(),
@@ -515,24 +596,43 @@ impl Parser {
                 self.advance_tokens();
                 Ok(primary)
             }
-            Token::CloseParenthesis => Err(ParserError {
+            Token::CloseParenthesis
+            | Token::StringLiteral(_)
+            | Token::OpenBracket
+            | Token::CloseBracket
+            | Token::OpenBrace
+            | Token::CloseBrace
+            | Token::Comma
+            | Token::Equal
+            | Token::NotEqual
+            | Token::LessThan
+            | Token::GreaterThan
+            | Token::LessThanOrEqual
+            | Token::GreaterThanOrEqual
+            | Token::SemiColon => Err(ParserError {
                 position: self.lexer.get_position(),
-                message: "Unexpected token: ')'".to_string(),
+                message: format!("Unexpected token: '{}'", next_token),
             }
             .into()),
-            Token::StringLiteral(_) => todo!(),
-            Token::OpenBracket => todo!(),
-            Token::CloseBracket => todo!(),
-            Token::OpenBrace => todo!(),
-            Token::CloseBrace => todo!(),
-            Token::Comma => todo!(),
-            Token::Equal => todo!(),
-            Token::NotEqual => todo!(),
-            Token::LessThan => todo!(),
-            Token::GreaterThan => todo!(),
-            Token::LessThanOrEqual => todo!(),
-            Token::GreaterThanOrEqual => todo!(),
-            Token::SemiColon => todo!(),
         }
+    }
+
+    fn parse_comparator(&mut self) -> Result<Comparator> {
+        let result = match self.next_token {
+            Token::Equal => Ok(Comparator::Equal),
+            Token::LessThan => Ok(Comparator::LessThan),
+            Token::LessThanOrEqual => Ok(Comparator::LessThanOrEqual),
+            Token::GreaterThan => Ok(Comparator::GreaterThan),
+            Token::GreaterThanOrEqual => Ok(Comparator::GreaterThanOrEqual),
+            _ => {
+                return Err(ParserError {
+                    position: self.lexer.get_position(),
+                    message: "Unexpected token: ')'".to_string(),
+                }
+                .into())
+            }
+        };
+        self.advance_tokens();
+        result
     }
 }

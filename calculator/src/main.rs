@@ -2,13 +2,14 @@
 // mod evaluate;
 mod lexer;
 mod parser;
+mod pretty_print;
 mod tokens;
 
 use std::{env, fs};
 
 use parser::ProgramNode;
 
-use crate::parser::Parser;
+use crate::{parser::Parser, pretty_print::pretty_print};
 
 // use crate::evaluate::evaluate;
 
@@ -30,7 +31,7 @@ fn main() {
     match Parser::parse(&contents) {
         Ok(node) => {
             let code = emit_code(&node).expect("msg");
-            println!("Suck Sex!");
+            println!("{}", pretty_print(&node));
         }
         Err(error) => println!("Failed: {:?}", error),
     }
