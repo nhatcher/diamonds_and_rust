@@ -199,6 +199,12 @@ pub enum StatementNode {
 
 You can see the whole list (here)[].
 
+## Semantic analysis
+
+Once the AST has been build, we need to make sure the program makes sense. In this stage we will test for things we can't check at parse time (or are more difficult to test at parse time) like undefined variables or variables defined twice.
+
+In our case the semantic analysis pass will also extract the set of functions we use and their signatures that we will need at a later stage when emitting code.
+
 ## Binary WebAssembly, the theoretical minimum
 
 Since our target language is WebAssembly we need to know a little bit about the language.
@@ -410,3 +416,7 @@ Operation codes
 ## References
 
 * [WebAssembly binary specification](https://webassembly.github.io/spec/core/binary/index.html)
+
+* https://www.h-schmidt.net/FloatConverter/IEEE754.html
+* https://webassembly.github.io/wabt/demo/wat2wasm/
+* https://www.ibm.com/docs/en/aix/7.2?topic=types-double-precision-floating-point

@@ -46,6 +46,15 @@ window.addEventListener('load', () => {
             console.error(e);
         }
     });
+
+    const text = document.getElementById('text');
+    const textUtf8Encoding = document.getElementById('text-utf8-encoding');
+
+    text.addEventListener('change', (event) => {
+        const value = event.target.value;
+        const bytes = stringToUtf8Bytes(value);
+        textUtf8Encoding.innerText = bytesToString(bytes);
+    });
 });
 
 </script>
