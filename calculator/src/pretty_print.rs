@@ -1,5 +1,5 @@
 use crate::parser::{
-    CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, Range, StatementNode,
+    CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, StatementNode, YRange, SumRange,
 };
 
 pub(crate) fn pretty_print(node: &ProgramNode) -> String {
@@ -43,11 +43,11 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                 match y_range {
                     Some(y) => str.push_str(&format!(
                         "Plot({fun_str}, {}, {})",
-                        pretty_print_range(x_range),
-                        pretty_print_range(y)
+                        pretty_print_sum_range(x_range),
+                        pretty_print_y_range(y)
                     )),
                     None => {
-                        str.push_str(&format!("Plot({fun_str}, {})", pretty_print_range(x_range)))
+                        str.push_str(&format!("Plot({fun_str}, {})", pretty_print_sum_range(x_range)))
                     }
                 }
             }
@@ -95,20 +95,26 @@ fn pretty_print_expression(node: &ExpressionNode) -> String {
         }
         ExpressionNode::SumExpression { value, range } => {
             format!(
-                "Sum({}, {{ {}, {}, {} }})",
+                "Sum({}, {})",
                 pretty_print_expression(value),
-                range.variable_name,
-                pretty_print_expression(&range.lower),
-                pretty_print_expression(&range.upper)
+                pretty_print_sum_range(&range)
             )
         }
     }
 }
 
-fn pretty_print_range(node: &Range) -> String {
+fn pretty_print_sum_range(range: &SumRange) -> String {
     format!(
-        "{{{}, {}, {}}}",
-        pretty_print_expression(&node.value),
+        "{{ {}, {}, {} }}",
+        range.variable_name,
+        pretty_print_expression(&range.lower),
+        pretty_print_expression(&range.upper)
+    )
+}
+
+fn pretty_print_y_range(node: &YRange) -> String {
+    format!(
+        "{{{}, {}}}",
         pretty_print_expression(&node.minimum),
         pretty_print_expression(&node.maximum)
     )

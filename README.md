@@ -73,6 +73,16 @@ DrawText(canvas, {10, 10, "A function"})
 
 We might use physical coordinates of logical coordinates
 
+## The parts of the compiler
+
+Our compiler is built in four distinct parts:
+
+1. A streaming tokenizer: produces a sequence of tokens
+2. The parser: produces the Abstract Syntax Tree
+3. The semantic analyzer: checks the AST, simplifies expressions and produces the symbol table
+4. Code emitter: emits binary code
+
+
 ## Parsing the new language
 
 List of tokens:
@@ -142,8 +152,9 @@ comparator     => '=' | '!=' | '<=' | '>='
 
 interval       => '{' Name ',' expression ',' expression '}'
 operator       => '+' | '-' | '*' | '/'
-plot_statement => 'Plot' '(' function_list ',' range (',' range)? ')'
+plot_statement => 'Plot' '(' function_list ',' range (',' y_range)? ')'
 range          => '{' Name ',' expression ',' expression '}'
+y_range        => '{' expression, expression  '}'
 function_list  => fn_element | '[' functions ']'
 fn_element     => fn_plot (',' fn_plot)*
 fn_plot        => '{' expression (',' option)* '}'
@@ -405,6 +416,7 @@ Operation codes
 
 ## The one with the compiler
 
+
 ## Putting it altogether. A solid frontend
 
 
@@ -412,6 +424,36 @@ Operation codes
 
 1. Add comments. Note that comments are ignored by the compiler. You can add single line comments or multiline comments. Maybe C style /* and closed by */ or C++ // or like Smalltalk just using quotes or Perl/Python style using `#` at the beginning, your call!
 2. Create a vscode plugin for Keith!
+
+
+## Discards: Memory management
+
+This section is not used in the development of the Keith programming language but may come important when building your own language or extension.
+
+One important thing missing from Keith is the ability to create new data structures. But that will be relevant if we want to include vectors or matrices into the language, for instance. For those purposes we will need (or it will be extremely convenient) to be able to allocate objects in the heap.
+
+* context (enter/leave). Name resolution
+* heap vs stack
+* malloc/free. bump allocator
+* WebAssembly linear memory model
+* Garbage collection
+
+
+## Discards: Types
+
+* type checking
+* type inference
+* So you still don't understand Hindley-Milner?
+
+## Discards: LLVM, JVM or our own virtual machine
+
+* LLVM and optimizing compilers
+* Targeting The Java Virtual Machine
+* Rolling our own VM: Thorsten, Lua, Erlang/Elixir Beam, Python, Ruby, ..
+
+## Discards: Targeting a real assembly language
+
+* Registers
 
 ## References
 

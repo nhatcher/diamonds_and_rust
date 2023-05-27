@@ -63,8 +63,7 @@ pub struct ProgramNode {
     pub statements: Vec<StatementNode>,
 }
 
-pub struct Range {
-    pub value: ExpressionNode,
+pub struct  YRange {
     pub minimum: ExpressionNode,
     pub maximum: ExpressionNode,
 }
@@ -92,8 +91,8 @@ pub enum StatementNode {
     },
     PlotStatement {
         functions: Vec<PlotFunctionNode>,
-        x_range: Range,
-        y_range: Option<Range>,
+        x_range: SumRange,
+        y_range: Option<YRange>,
     },
 }
 
@@ -340,12 +339,29 @@ impl Parser {
 
         self.expect_token(Token::Comma)?;
 
-        let x_range = self.parse_range()?;
+        let x_range = {
+            self.expect_token(Token::OpenBrace)?;
+            let variable_name = self.parse_name()?;
+            self.expect_token(Token::Comma)?;
+            let lower = Box::new(self.parse_expression()?);
+            self.expect_token(Token::Comma)?;
+            let upper = Box::new(self.parse_expression()?);
+            self.expect_token(Token::CloseBrace)?;
+            self.expect_token(Token::CloseParenthesis)?;
+            SumRange { variable_name, lower, upper }
+        };
 
         // y-range
         let y_range = if self.next_token == Token::Comma {
             self.advance_tokens();
-            Some(self.parse_range()?)
+            self.expect_token(Token::Comma)?;
+            let minimum = self.parse_expression()?;
+
+            self.expect_token(Token::Comma)?;
+            let maximum = self.parse_expression()?;
+
+            self.expect_token(Token::CloseBrace)?;
+            Some(YRange { minimum, maximum })
         } else {
             None
         };
@@ -356,25 +372,6 @@ impl Parser {
             functions,
             x_range,
             y_range,
-        })
-    }
-
-    fn parse_range(&mut self) -> Result<Range> {
-        self.expect_token(Token::OpenBrace)?;
-        let value = self.parse_expression()?;
-
-        self.expect_token(Token::Comma)?;
-        let minimum = self.parse_expression()?;
-
-        self.expect_token(Token::Comma)?;
-        let maximum = self.parse_expression()?;
-
-        self.expect_token(Token::CloseBrace)?;
-
-        Ok(Range {
-            value,
-            minimum,
-            maximum,
         })
     }
 
