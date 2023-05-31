@@ -8,6 +8,7 @@ mod lexer;
 mod parser;
 mod pretty_print;
 mod tokens;
+mod builtins;
 
 use std::{env, fs};
 
@@ -28,9 +29,10 @@ fn main() {
 
     match Parser::parse(&contents) {
         Ok(mut program) => match analyze_program(&mut program) {
-            Ok(t) => {
-                let code = emit_code(&program).expect("msg");
+            Ok(symbol_table) => {
+                let code = emit_code(&program, &symbol_table).expect("msg");
                 println!("{}", pretty_print(&program));
+                println!("{:?}", code);
             }
             Err(_error) => println!("Failed!"),
         },

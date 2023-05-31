@@ -6,31 +6,28 @@
 //   sliders and lifetimes
 //   function and arguments, signatures and function lifetime
 
+use crate::builtins::{Builtin, get_builtin_by_name};
 use crate::errors::{Result, SemanticError};
 
 use crate::{
-    evaluate::evaluate_with_globals,
+    evaluate::evaluate_in_context,
     parser::{ExpressionNode, ProgramNode, StatementNode},
 };
 
-fn is_valid_name(name: &str) -> bool {
-    // valid variable names in Keith
-    todo!()
+
+pub struct Global {
+    pub name: String,
+    pub value: f64,
+}
+pub struct Slider {
+    pub name: String,
+    pub minimum: f64,
+    pub maximum: f64,
 }
 
-struct Global {
-    name: String,
-    value: f64,
-}
-struct Slider {
-    name: String,
-    minimum: f64,
-    maximum: f64,
-}
-
-struct Function {
-    name: String,
-    arg_count: u32,
+pub struct Function {
+    pub name: String,
+    pub arg_count: u8,
 }
 
 pub(crate) struct Context<'a> {
@@ -40,10 +37,10 @@ pub(crate) struct Context<'a> {
 }
 
 pub(crate) struct SymbolTable {
-    globals: Vec<Global>,
-    sliders: Vec<Slider>,
-    functions: Vec<Function>,
-    builtins: Vec<String>,
+    pub globals: Vec<Global>,
+    pub sliders: Vec<Slider>,
+    pub functions: Vec<Function>,
+    pub builtins: Vec<Builtin>,
 }
 
 fn is_name_new(name: &str, context: &Context) -> bool {
@@ -51,7 +48,7 @@ fn is_name_new(name: &str, context: &Context) -> bool {
 }
 
 // Returns a list of the sen imported functions
-fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<String>>{
+fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Builtin>>{
     let mut builtins = Vec::new();
     // Check that an expression is valid
     // 1. there are no undefined variables
@@ -78,25 +75,17 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<St
             }
             // In Keith a function that starts with a capital letter like `Sin` or `Tan` is builtin,
             // functions that start with a lowercase letter are user defined
-            let arg_count = args.len();
+            let arg_count = args.len() as u8;
+
             if name.chars().next().unwrap().is_uppercase() {
-                let fn_f64_to_f64 = vec!["Sin", "Cos", "Tan", "Log"];
-                if fn_f64_to_f64.iter().any(|s| s == name) {
-                    if arg_count != 1 {
+                if let Some(builtin) = get_builtin_by_name(name) {
+                    if arg_count != builtin.arg_count() {
                         return Err(SemanticError{ message: format!("Expected exactly one argument but got {arg_count}") }.into())
                     }
-                    builtins.push(name.to_string());
-                    builtins.append(&mut analyze_expression(&args[0], context)?);
-                    return Ok(builtins);
-                }
-                let fn_f64xf64_to_f64 = vec!["Atan2", "Pow"];
-                if fn_f64xf64_to_f64.iter().any(|s| s == name) {
-                    if arg_count != 2 {
-                        return Err(SemanticError{ message: format!("Expected exactly one argument but got {arg_count}") }.into())
+                    builtins.push(builtin);
+                    for arg in args {
+                        builtins.append(&mut analyze_expression(arg, context)?);
                     }
-                    builtins.push(name.to_string());
-                    builtins.append(&mut analyze_expression(&args[0], context)?);
-                    builtins.append(&mut analyze_expression(&args[1], context)?);
                     return Ok(builtins);
                 }
                 return Err(SemanticError{ message: format!("Unrecognized function: '{name}'") }.into());
@@ -104,7 +93,7 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<St
             // It's a user defined function
             for function in context.functions.iter() {
                 if name == &function.name {
-                    if arg_count != function.arg_count as usize {
+                    if arg_count != function.arg_count {
                         return Err(SemanticError{ message: format!("Expected {} arguments but got {}", function.arg_count, arg_count) }.into());            
                     }
                     for arg in args {
@@ -157,7 +146,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     }
                     .into());
                 }
-                *value = ExpressionNode::Number(evaluate_with_globals(
+                *value = ExpressionNode::Number(evaluate_in_context(
                     value,
                     &Context {
                         globals: &globals,
@@ -179,7 +168,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     }
                     .into());
                 }
-                *default_value = ExpressionNode::Number(evaluate_with_globals(
+                *default_value = ExpressionNode::Number(evaluate_in_context(
                     default_value,
                     &Context {
                         globals: &globals,
@@ -187,7 +176,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                         locals: &vec![],
                     },
                 )?);
-                *minimum_value = ExpressionNode::Number(evaluate_with_globals(
+                *minimum_value = ExpressionNode::Number(evaluate_in_context(
                     minimum_value,
                     &Context {
                         globals: &globals,
@@ -195,7 +184,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                         locals: &vec![]
                     },
                 )?);
-                *maximum_value = ExpressionNode::Number(evaluate_with_globals(
+                *maximum_value = ExpressionNode::Number(evaluate_in_context(
                     maximum_value,
                     &Context {
                         globals: &globals,
@@ -218,6 +207,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                 }
                 seen_names.push(name.clone());
                 builtins.append(&mut analyze_expression(value, &Context{ globals: &globals, functions: &functions, locals: arguments})?);
+                functions.push(Function { name: name.clone(), arg_count: arguments.len() as u8 })
             }
             StatementNode::PlotStatement {
                 functions: function_list,
@@ -239,8 +229,8 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                         functions: &functions,
                         locals: &vec![]
                     };
-                    let minimum = evaluate_with_globals(&range.minimum, context)?;
-                    let maximum = evaluate_with_globals(&range.maximum, context)?;  
+                    let minimum = evaluate_in_context(&range.minimum, context)?;
+                    let maximum = evaluate_in_context(&range.maximum, context)?;  
                     range.minimum = ExpressionNode::Number(minimum);
                     range.maximum = ExpressionNode::Number(maximum);  
                 }
