@@ -1,6 +1,4 @@
-use std::ops::Index;
-
-use crate::{parser::ProgramNode, analyzer::SymbolTable};
+use crate::{parser::{ProgramNode, StatementNode}, analyzer::SymbolTable};
 
 // fn encode_leb128(value: u32) -> Vec<u8> {
 //     fn encode(i: u32, r: &[u8]) -> Vec<u8> {
@@ -73,52 +71,83 @@ fn emit_type_section(symbol_table: &SymbolTable, signatures: &mut Vec<u8>) -> Re
     Ok(result)
 }
 
-fn emit_imports_section(symbol_table: &SymbolTable, signatures: &[u8]) -> Result<Vec<u8>, String> {
+fn emit_imports_section(root: &ProgramNode, symbol_table: &SymbolTable, signatures: &[u8], constants: &mut Vec<String>) -> Result<Vec<u8>, String> {
     let math = encode_str("Math");
+    let globals = encode_str("globals");
     let mut imports = Vec::new();
+    let mut length = 0;
+    // first we import the functions
     for builtin in &symbol_table.builtins {
         imports.append(&mut math.clone());
         imports.append(&mut encode_str(builtin.name()));
-        // th import descriptor
+        // the import descriptor (it's a function)
         imports.push(0x00);
         let function_type = signatures.iter().position(|&s| s == builtin.arg_count()).expect("");
         imports.push(function_type as u8);
+        length += 1;
     }
-    let length = symbol_table.builtins.len() as u32;
+    // then we import the mutable globals (sliders)
+    for statement in &root.statements {
+        if let StatementNode::Slider { name, .. } = statement {
+            imports.append(&mut globals.clone());
+            imports.append(&mut encode_str(name));
+            // the import descriptor (it's a constant)
+            imports.push(0x03);
+            // It's an f64
+            imports.push(0x7c);
+            // The 'constant' is mutable
+            imports.push(0x01);
+            constants.push(name.clone());
+            length += 1;
+        }
+    }
     let mut result = vec![0x02];
     result.append(&mut encode_leb128(length));
     result.append(&mut imports);
-    // let mut result = vec![
-    //     0x02, 0x55, // import section. Takes 84 bytes (0x55)
-    //     0x06, // We import 6 functions
-    //     // This is 'Math'. First byte says it's 4 bytes
-    //     0x04, 0x4d, 0x61, 0x74, 0x68, // Math
-    //     // sin (has three characters, the import descriptor is 0x00 and the type is 0x00)
-    //     0x03, 0x73, 0x69, 0x6e, 0x00, 0x00, //
-    //     0x04, 0x4d, 0x61, 0x74, 0x68, // Math
-    //     0x03, 0x63, 0x6f, 0x73, 0x00, 0x00, // cos
-    //     0x04, 0x4d, 0x61, 0x74, 0x68, // Math
-    //     0x03, 0x74, 0x61, 0x6e, 0x00, 0x00, // tan
-    //     0x04, 0x4d, 0x61, 0x74, 0x68, // Math
-    //     0x03, 0x6c, 0x6f, 0x67, 0x00, 0x00, // log
-    //     0x04, 0x4d, 0x61, 0x74, 0x68, // Math
-    //     0x03, 0x65, 0x78, 0x70, 0x00, 0x00, // exp
-    //     0x04, 0x4d, 0x61, 0x74, 0x68, // Math pow
-    //     // pow (import descriptor is 0x00 but type is 0x01)
-    //     0x03, 0x70, 0x6f, 0x77, 0x00, 0x01,
-    // ];
     Ok(result)
 }
 
-fn emit_function_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
+fn emit_function_section(root: &ProgramNode, signatures: &[u8]) -> Result<Vec<u8>, String> {
+    let mut function_count = 0;
+    let mut bytes = Vec::new(); 
+    for statement in &root.statements {
+        if let StatementNode::FunctionDeclaration { arguments, .. } = statement {
+            function_count += 1;
+            let arg_count = arguments.len() as u8;
+            let function_type_index = signatures.iter().position(|&s| s == arg_count).expect("");
+            bytes.push(function_type_index as u8);
+        }
+    }
     let mut result = vec![0x03];
+    let bytes_count = bytes.len() as u32;
+    result.append(&mut encode_leb128(bytes_count));
+    result.append(&mut encode_leb128(function_count));
+    result.append(&mut bytes);
     Ok(result)
 }
 
-fn emit_global_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
-    let mut result = vec![0x06];
-    Ok(result)
-}
+// fn emit_global_section(root: &ProgramNode, constants: &mut Vec<String>) -> Result<Vec<u8>, String> {
+//     let mut bytes = Vec::new();
+//     for statement in &root.statements {
+//         match statement {
+//             StatementNode::ConstantAssignment { name, value } => {
+//                 bytes.append(&mut vec![0x7c, 0x00]);
+//                 constants.push(name.clone());
+//             }
+//             StatementNode::Slider { name, default_value, minimum_value: _, maximum_value: _ } => {
+//                 bytes.append(&mut vec![0x7c, 0x01]);
+//                 constants.push(name.clone());
+//             }
+//             _ => {
+//                 // noop
+//             }
+            
+//         }
+//     }
+//     let mut result = vec![0x06];
+//     result.append(&mut bytes);
+//     Ok(result)
+// }
 
 fn emit_export_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
     let mut result = vec![0x07];
@@ -136,10 +165,10 @@ pub(crate) fn emit_code(node: &ProgramNode, symbol_table: &SymbolTable) -> Resul
         0x01, 0x00, 0x00, 0x00, // module version
     ];
     let mut signatures = Vec::new();
+    let mut constants = Vec::new();
     result.append(&mut emit_type_section(symbol_table, &mut signatures)?);
-    result.append(&mut emit_imports_section(symbol_table, &signatures)?);
-    result.append(&mut emit_function_section(node)?);
-    result.append(&mut emit_global_section(node)?);
+    result.append(&mut emit_imports_section(node, symbol_table, &signatures, &mut constants)?);
+    result.append(&mut emit_function_section(node, &signatures)?);
     result.append(&mut emit_export_section(node)?);
     result.append(&mut emit_code_section(node)?);
 

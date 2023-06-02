@@ -23,6 +23,7 @@ pub struct Slider {
     pub name: String,
     pub minimum: f64,
     pub maximum: f64,
+    pub default: f64,
 }
 
 pub struct Function {
@@ -60,6 +61,7 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
             if !is_name_new(name, context) {
                 return Err(SemanticError{ message: format!("Variable already exist: '{name}'") }.into());
             }
+            // NOTE: We could substitute globals here for their value, but we will do that when emitting code instead.
         },
         ExpressionNode::BinaryOp { op: _, left, right } => {
             builtins.append(&mut analyze_expression(left, context)?);
@@ -146,14 +148,16 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     }
                     .into());
                 }
-                *value = ExpressionNode::Number(evaluate_in_context(
+                let f = evaluate_in_context(
                     value,
                     &Context {
                         globals: &globals,
                         functions: &functions,
                         locals: &vec![]
                     },
-                )?);
+                )?;
+                *value = ExpressionNode::Number(f);
+                globals.push(Global { name: name.clone(), value: f });
                 seen_names.push(name.clone());
             }
             StatementNode::Slider {
@@ -168,30 +172,31 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     }
                     .into());
                 }
-                *default_value = ExpressionNode::Number(evaluate_in_context(
+                let default = evaluate_in_context(
                     default_value,
                     &Context {
                         globals: &globals,
                         functions: &functions,
                         locals: &vec![],
                     },
-                )?);
-                *minimum_value = ExpressionNode::Number(evaluate_in_context(
+                )?;
+                let minimum = evaluate_in_context(
                     minimum_value,
                     &Context {
                         globals: &globals,
                         functions: &functions,
                         locals: &vec![]
                     },
-                )?);
-                *maximum_value = ExpressionNode::Number(evaluate_in_context(
+                )?;
+                let maximum = evaluate_in_context(
                     maximum_value,
                     &Context {
                         globals: &globals,
                         functions: &functions,
                         locals: &vec![]
                     },
-                )?);
+                )?;
+                sliders.push(Slider { name: name.clone(), minimum, maximum, default });
                 seen_names.push(name.clone());
             }
             StatementNode::FunctionDeclaration {

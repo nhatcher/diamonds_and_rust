@@ -343,7 +343,7 @@ First byte is the section number, second is the number of bytes in the body of t
 
 ### 0x06: Global section
 
-This is a list of the global variables. The runtime will have read and write access to these variables.
+This is a list of the global variables. The runtime will have read access and maybe write access to these variables.
 
 Each global has a value type (f64 always in our case or `0x7c`) a byte that says whether the variable is mutable or not `0x00` says it's mutable, `0x01` says it's constant.
 
@@ -424,7 +424,6 @@ Operation codes
 
 1. Add comments. Note that comments are ignored by the compiler. You can add single line comments or multiline comments. Maybe C style /* and closed by */ or C++ // or like Smalltalk just using quotes or Perl/Python style using `#` at the beginning, your call!
 2. Create a vscode plugin for Keith!
-
 
 ## Discards: Memory management
 
