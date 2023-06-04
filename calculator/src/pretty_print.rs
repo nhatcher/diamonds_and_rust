@@ -9,6 +9,9 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
             StatementNode::ConstantAssignment { name, value } => {
                 str.push_str(&format!("{name} = {};", pretty_print_expression(value)));
             }
+            StatementNode::PrintStatement { argument } => {
+                str.push_str(&format!("Print({});", pretty_print_expression(argument)));
+            }
             StatementNode::Slider {
                 name,
                 default_value,

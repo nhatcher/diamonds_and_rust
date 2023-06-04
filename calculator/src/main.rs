@@ -9,6 +9,7 @@ mod parser;
 mod pretty_print;
 mod tokens;
 mod builtins;
+mod opcodes;
 
 use std::{env, fs};
 

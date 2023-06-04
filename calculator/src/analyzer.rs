@@ -240,6 +240,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     range.maximum = ExpressionNode::Number(maximum);  
                 }
             },
+            StatementNode::PrintStatement { argument } => todo!(),
         }
     }
     Ok(SymbolTable {

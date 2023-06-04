@@ -94,6 +94,9 @@ pub enum StatementNode {
         x_range: SumRange,
         y_range: Option<YRange>,
     },
+    PrintStatement {
+        argument: ExpressionNode
+    }
 }
 
 pub struct CompareNode {
@@ -207,6 +210,13 @@ impl Parser {
             if name == "Plot" {
                 self.expect_token(Token::OpenParenthesis)?;
                 return self.parse_plot_statement();
+            } else if name == "Print" {
+                self.expect_token(Token::OpenParenthesis)?;
+                let argument = self.parse_expression()?;
+                self.expect_token(Token::CloseParenthesis)?;
+                return Ok(StatementNode::PrintStatement {
+                    argument
+                });
             }
             if self.next_token == Token::OpenParenthesis {
                 // function definition
