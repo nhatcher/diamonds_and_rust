@@ -27,6 +27,7 @@ impl Display for Operator {
 #[derive(Debug)]
 pub enum Comparator {
     Equal,
+    NotEqual,
     LessThan,
     GreaterThan,
     LessThanOrEqual,
@@ -37,6 +38,7 @@ impl Display for Comparator {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Comparator::Equal => write!(fmt, "="),
+            Comparator::NotEqual => write!(fmt, "!="),
             Comparator::LessThan => write!(fmt, "<"),
             Comparator::GreaterThan => write!(fmt, ">"),
             Comparator::LessThanOrEqual => write!(fmt, "<="),
@@ -63,7 +65,7 @@ pub struct ProgramNode {
     pub statements: Vec<StatementNode>,
 }
 
-pub struct  YRange {
+pub struct YRange {
     pub minimum: ExpressionNode,
     pub maximum: ExpressionNode,
 }
@@ -95,8 +97,8 @@ pub enum StatementNode {
         y_range: Option<YRange>,
     },
     PrintStatement {
-        argument: ExpressionNode
-    }
+        argument: ExpressionNode,
+    },
 }
 
 pub struct CompareNode {
@@ -214,9 +216,7 @@ impl Parser {
                 self.expect_token(Token::OpenParenthesis)?;
                 let argument = self.parse_expression()?;
                 self.expect_token(Token::CloseParenthesis)?;
-                return Ok(StatementNode::PrintStatement {
-                    argument
-                });
+                return Ok(StatementNode::PrintStatement { argument });
             }
             if self.next_token == Token::OpenParenthesis {
                 // function definition
@@ -358,7 +358,11 @@ impl Parser {
             let upper = Box::new(self.parse_expression()?);
             self.expect_token(Token::CloseBrace)?;
             self.expect_token(Token::CloseParenthesis)?;
-            SumRange { variable_name, lower, upper }
+            SumRange {
+                variable_name,
+                lower,
+                upper,
+            }
         };
 
         // y-range

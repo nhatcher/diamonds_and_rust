@@ -6,14 +6,13 @@
 //   sliders and lifetimes
 //   function and arguments, signatures and function lifetime
 
-use crate::builtins::{Builtin, get_builtin_by_name};
+use crate::builtins::{get_builtin_by_name, Builtin};
 use crate::errors::{Result, SemanticError};
 
 use crate::{
     evaluate::evaluate_in_context,
     parser::{ExpressionNode, ProgramNode, StatementNode},
 };
-
 
 pub struct Global {
     pub name: String,
@@ -49,31 +48,39 @@ fn is_name_new(name: &str, context: &Context) -> bool {
 }
 
 // Returns a list of the sen imported functions
-fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Builtin>>{
+fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Builtin>> {
     let mut builtins = Vec::new();
     // Check that an expression is valid
     // 1. there are no undefined variables
     // 2. functions are called wit the correct arguments
     match expr {
-        ExpressionNode::Number(_) => {},
+        ExpressionNode::Number(_) => {}
         ExpressionNode::Variable(name) => {
             // check that variable has not been defined
             if !is_name_new(name, context) {
-                return Err(SemanticError{ message: format!("Variable already exist: '{name}'") }.into());
+                return Err(SemanticError {
+                    message: format!("Variable already exist: '{name}'"),
+                }
+                .into());
             }
             // NOTE: We could substitute globals here for their value, but we will do that when emitting code instead.
-        },
+        }
         ExpressionNode::BinaryOp { op: _, left, right } => {
             builtins.append(&mut analyze_expression(left, context)?);
             builtins.append(&mut analyze_expression(right, context)?);
-        },
-        ExpressionNode::UnaryOp { op: _, right } => builtins.append(&mut analyze_expression(right, context)?),
+        }
+        ExpressionNode::UnaryOp { op: _, right } => {
+            builtins.append(&mut analyze_expression(right, context)?)
+        }
         ExpressionNode::FunctionCall { name, args } => {
             // We need to check:
             // 1. function exists
             // 2. arguments are correct
             if !is_name_new(name, context) {
-                return Err(SemanticError{ message: format!("Variable already exist: '{name}'") }.into());
+                return Err(SemanticError {
+                    message: format!("Variable already exist: '{name}'"),
+                }
+                .into());
             }
             // In Keith a function that starts with a capital letter like `Sin` or `Tan` is builtin,
             // functions that start with a lowercase letter are user defined
@@ -82,7 +89,10 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
             if name.chars().next().unwrap().is_uppercase() {
                 if let Some(builtin) = get_builtin_by_name(name) {
                     if arg_count != builtin.arg_count() {
-                        return Err(SemanticError{ message: format!("Expected exactly one argument but got {arg_count}") }.into())
+                        return Err(SemanticError {
+                            message: format!("Expected exactly one argument but got {arg_count}"),
+                        }
+                        .into());
                     }
                     builtins.push(builtin);
                     for arg in args {
@@ -90,13 +100,22 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
                     }
                     return Ok(builtins);
                 }
-                return Err(SemanticError{ message: format!("Unrecognized function: '{name}'") }.into());
+                return Err(SemanticError {
+                    message: format!("Unrecognized function: '{name}'"),
+                }
+                .into());
             }
             // It's a user defined function
             for function in context.functions.iter() {
                 if name == &function.name {
                     if arg_count != function.arg_count {
-                        return Err(SemanticError{ message: format!("Expected {} arguments but got {}", function.arg_count, arg_count) }.into());            
+                        return Err(SemanticError {
+                            message: format!(
+                                "Expected {} arguments but got {}",
+                                function.arg_count, arg_count
+                            ),
+                        }
+                        .into());
                     }
                     for arg in args {
                         builtins.append(&mut analyze_expression(arg, context)?);
@@ -104,15 +123,21 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
                     return Ok(builtins);
                 }
             }
-            return Err(SemanticError{ message: format!("Undefined function: '{name}'") }.into());
-
-        },
-        ExpressionNode::IfExpression { condition, if_true, if_false } => {
+            return Err(SemanticError {
+                message: format!("Undefined function: '{name}'"),
+            }
+            .into());
+        }
+        ExpressionNode::IfExpression {
+            condition,
+            if_true,
+            if_false,
+        } => {
             analyze_expression(&condition.left, context)?;
             analyze_expression(&condition.right, context)?;
             analyze_expression(if_true, context)?;
             analyze_expression(if_false, context)?;
-        },
+        }
         ExpressionNode::SumExpression { value, range } => {
             let name = range.variable_name.clone();
             let mut locals = context.locals.clone();
@@ -123,7 +148,7 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
                 locals: &locals,
             };
             analyze_expression(value, &new_context)?;
-        },
+        }
     };
     Ok(builtins)
 }
@@ -153,11 +178,14 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     &Context {
                         globals: &globals,
                         functions: &functions,
-                        locals: &vec![]
+                        locals: &vec![],
                     },
                 )?;
                 *value = ExpressionNode::Number(f);
-                globals.push(Global { name: name.clone(), value: f });
+                globals.push(Global {
+                    name: name.clone(),
+                    value: f,
+                });
                 seen_names.push(name.clone());
             }
             StatementNode::Slider {
@@ -185,7 +213,7 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     &Context {
                         globals: &globals,
                         functions: &functions,
-                        locals: &vec![]
+                        locals: &vec![],
                     },
                 )?;
                 let maximum = evaluate_in_context(
@@ -193,10 +221,15 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     &Context {
                         globals: &globals,
                         functions: &functions,
-                        locals: &vec![]
+                        locals: &vec![],
                     },
                 )?;
-                sliders.push(Slider { name: name.clone(), minimum, maximum, default });
+                sliders.push(Slider {
+                    name: name.clone(),
+                    minimum,
+                    maximum,
+                    default,
+                });
                 seen_names.push(name.clone());
             }
             StatementNode::FunctionDeclaration {
@@ -211,8 +244,18 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     .into());
                 }
                 seen_names.push(name.clone());
-                builtins.append(&mut analyze_expression(value, &Context{ globals: &globals, functions: &functions, locals: arguments})?);
-                functions.push(Function { name: name.clone(), arg_count: arguments.len() as u8 })
+                builtins.append(&mut analyze_expression(
+                    value,
+                    &Context {
+                        globals: &globals,
+                        functions: &functions,
+                        locals: arguments,
+                    },
+                )?);
+                functions.push(Function {
+                    name: name.clone(),
+                    arg_count: arguments.len() as u8,
+                })
             }
             StatementNode::PlotStatement {
                 functions: function_list,
@@ -232,14 +275,14 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     let context = &Context {
                         globals: &globals,
                         functions: &functions,
-                        locals: &vec![]
+                        locals: &vec![],
                     };
                     let minimum = evaluate_in_context(&range.minimum, context)?;
-                    let maximum = evaluate_in_context(&range.maximum, context)?;  
+                    let maximum = evaluate_in_context(&range.maximum, context)?;
                     range.minimum = ExpressionNode::Number(minimum);
-                    range.maximum = ExpressionNode::Number(maximum);  
+                    range.maximum = ExpressionNode::Number(maximum);
                 }
-            },
+            }
             StatementNode::PrintStatement { argument } => todo!(),
         }
     }

@@ -29,9 +29,8 @@ impl Builtin {
     pub fn arg_count(&self) -> u8 {
         match &self {
             Builtin::Atan2 | Builtin::Pow => 2,
-            _ => 1
+            _ => 1,
         }
-
     }
     pub fn name(&self) -> &str {
         match &self {
@@ -82,6 +81,6 @@ pub(crate) fn get_builtin_by_name(name: &str) -> Option<Builtin> {
 
         "Atan2" => Some(Builtin::Atan2),
         "Pow" => Some(Builtin::Pow),
-        _ => None
+        _ => None,
     }
 }

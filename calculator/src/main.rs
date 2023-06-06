@@ -1,15 +1,15 @@
 // mod compiler;
 // mod evaluate;
 mod analyzer;
+mod builtins;
 mod emitter;
 mod errors;
 mod evaluate;
 mod lexer;
+mod opcodes;
 mod parser;
 mod pretty_print;
 mod tokens;
-mod builtins;
-mod opcodes;
 
 use std::{env, fs};
 

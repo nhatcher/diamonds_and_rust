@@ -1,4 +1,7 @@
-use crate::{parser::{ProgramNode, StatementNode, ExpressionNode, Operator, UnaryOperator}, analyzer::SymbolTable};
+use crate::{
+    analyzer::SymbolTable,
+    parser::{Comparator, ExpressionNode, Operator, ProgramNode, StatementNode, UnaryOperator},
+};
 
 use crate::opcodes::*;
 
@@ -40,7 +43,10 @@ fn encode_str(str: &str) -> Vec<u8> {
     todo!()
 }
 
-fn emit_type_section(symbol_table: &SymbolTable, signatures: &mut Vec<u8>) -> Result<Vec<u8>, String> {
+fn emit_type_section(
+    symbol_table: &SymbolTable,
+    signatures: &mut Vec<u8>,
+) -> Result<Vec<u8>, String> {
     let functions = &symbol_table.functions;
     // In Keith all functions return a single f64, the only difference is how many f64 they consume.
     // At least one function (main) has signature () => f64
@@ -62,10 +68,10 @@ fn emit_type_section(symbol_table: &SymbolTable, signatures: &mut Vec<u8>) -> Re
     for arg_count in signatures {
         // It's a function (0x60) and has `arg_count` arguments
         let mut signature_vec = vec![FUNCTION_TYPE_MARKER, *arg_count];
-        // all the arguments are f64 
-        signature_vec.append(&mut vec![DOUBLE_TYPE; *arg_count as usize]);
-        // return type 
-        signature_vec.append(&mut vec![0x01, DOUBLE_TYPE]);
+        // all the arguments are f64
+        signature_vec.append(&mut vec![F64_TYPE; *arg_count as usize]);
+        // return type
+        signature_vec.append(&mut vec![0x01, F64_TYPE]);
     }
     let mut result = vec![SECTION_TYPE];
     result.append(&mut encode_leb128(signature_vec.len() as u32));
@@ -73,7 +79,12 @@ fn emit_type_section(symbol_table: &SymbolTable, signatures: &mut Vec<u8>) -> Re
     Ok(result)
 }
 
-fn emit_imports_section(root: &ProgramNode, symbol_table: &SymbolTable, signatures: &[u8], constants: &mut Vec<String>) -> Result<Vec<u8>, String> {
+fn emit_imports_section(
+    root: &ProgramNode,
+    symbol_table: &SymbolTable,
+    signatures: &[u8],
+    constants: &mut Vec<String>,
+) -> Result<Vec<u8>, String> {
     let math = encode_str("Math");
     let globals = encode_str("globals");
     let mut imports = Vec::new();
@@ -84,7 +95,10 @@ fn emit_imports_section(root: &ProgramNode, symbol_table: &SymbolTable, signatur
         imports.append(&mut encode_str(builtin.name()));
         // the import descriptor (it's a function)
         imports.push(FUNCTION_DESCRIPTOR);
-        let function_type = signatures.iter().position(|&s| s == builtin.arg_count()).expect("");
+        let function_type = signatures
+            .iter()
+            .position(|&s| s == builtin.arg_count())
+            .expect("");
         imports.push(function_type as u8);
         length += 1;
     }
@@ -96,7 +110,7 @@ fn emit_imports_section(root: &ProgramNode, symbol_table: &SymbolTable, signatur
             // the import descriptor (it's a constant)
             imports.push(CONSTANT_DESCRIPTOR);
             // It's an f64
-            imports.push(DOUBLE_TYPE);
+            imports.push(F64_TYPE);
             // The 'constant' is mutable
             imports.push(CONSTANT_MUTABLE);
             constants.push(name.clone());
@@ -112,7 +126,7 @@ fn emit_imports_section(root: &ProgramNode, symbol_table: &SymbolTable, signatur
 
 fn emit_function_section(root: &ProgramNode, signatures: &[u8]) -> Result<Vec<u8>, String> {
     let mut function_count = 0;
-    let mut bytes = Vec::new(); 
+    let mut bytes = Vec::new();
     for statement in &root.statements {
         if let StatementNode::FunctionDeclaration { arguments, .. } = statement {
             function_count += 1;
@@ -135,13 +149,18 @@ fn emit_export_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
     Ok(result)
 }
 
-fn emit_code_for_expression(node: &ExpressionNode, symbol_table: &SymbolTable, arguments: &[String]) -> Result<Vec<u8>, String> {
+fn emit_code_for_expression(
+    node: &ExpressionNode,
+    symbol_table: &SymbolTable,
+    arguments: &[String],
+    functions: &[String],
+) -> Result<Vec<u8>, String> {
     let mut result = Vec::new();
     match node {
         ExpressionNode::Number(f) => {
             result.push(INSTR_F64_CONST);
             result.append(&mut f.to_le_bytes().to_vec());
-        },
+        }
         ExpressionNode::Variable(name) => {
             if let Some(index) = arguments.iter().position(|s| s == name) {
                 // It's an arguments
@@ -159,10 +178,10 @@ fn emit_code_for_expression(node: &ExpressionNode, symbol_table: &SymbolTable, a
             } else {
                 return Err(format!("Unrecognized variable name '{name}'"));
             };
-        },
+        }
         ExpressionNode::BinaryOp { op, left, right } => {
-            let mut lhs = emit_code_for_expression(left, symbol_table, arguments)?;
-            let mut rhs = emit_code_for_expression(right, symbol_table, arguments)?;
+            let mut lhs = emit_code_for_expression(left, symbol_table, arguments, functions)?;
+            let mut rhs = emit_code_for_expression(right, symbol_table, arguments, functions)?;
             result.append(&mut lhs);
             result.append(&mut rhs);
             match op {
@@ -172,46 +191,198 @@ fn emit_code_for_expression(node: &ExpressionNode, symbol_table: &SymbolTable, a
                 Operator::Divide => result.push(INSTR_F64_DIV),
                 Operator::Power => {
                     result.push(INSTR_FUNCTION_CALL);
-                    // pow is function number ?
-                    todo!()
-                    //result.push(0x05);
+                    if let Some(function_index) = functions.iter().position(|s| s == "Pow") {
+                        result.push(function_index as u8);
+                    } else {
+                        return Err("Error".to_string());
+                    }
                 }
             };
-        },
+        }
         ExpressionNode::UnaryOp { op, right } => {
-            match  op {
-                UnaryOperator::Plus => result.append(&mut emit_code_for_expression(right, symbol_table, arguments)?),
+            match op {
+                UnaryOperator::Plus => result.append(&mut emit_code_for_expression(
+                    right,
+                    symbol_table,
+                    arguments,
+                    functions,
+                )?),
                 UnaryOperator::Minus => {
-                    result.append(&mut emit_code_for_expression(right, symbol_table, arguments)?);
+                    result.append(&mut emit_code_for_expression(
+                        right,
+                        symbol_table,
+                        arguments,
+                        functions,
+                    )?);
                     result.push(INSTR_F64_CONST);
                     let minus_one: f64 = -1.0;
                     result.append(&mut minus_one.to_le_bytes().to_vec());
                     result.push(INSTR_F64_MUL);
                 }
             };
-        },
+        }
         ExpressionNode::FunctionCall { name, args } => {
             for arg in args {
-                result.append(&mut emit_code_for_expression(arg, symbol_table, arguments)?);
+                result.append(&mut emit_code_for_expression(
+                    arg,
+                    symbol_table,
+                    arguments,
+                    functions,
+                )?);
             }
             result.push(INSTR_FUNCTION_CALL);
-            todo!()
-        },
-        ExpressionNode::IfExpression { condition, if_true, if_false } => todo!(),
-        ExpressionNode::SumExpression { value, range } => todo!(),
+            if let Some(function_index) = functions.iter().position(|s| s == name) {
+                result.push(function_index as u8);
+            } else {
+                return Err("Error".to_string());
+            }
+        }
+        ExpressionNode::IfExpression {
+            condition,
+            if_true,
+            if_false,
+        } => {
+            result.append(&mut emit_code_for_expression(
+                &condition.left,
+                symbol_table,
+                arguments,
+                functions,
+            )?);
+            result.append(&mut emit_code_for_expression(
+                &condition.right,
+                symbol_table,
+                arguments,
+                functions,
+            )?);
+            let op = match condition.op {
+                Comparator::Equal => INSTR_F64_EQ,
+                Comparator::NotEqual => INSTR_F64_NE,
+                Comparator::LessThan => INSTR_F64_LT,
+                Comparator::GreaterThan => INSTR_F64_GT,
+                Comparator::LessThanOrEqual => INSTR_F64_LE,
+                Comparator::GreaterThanOrEqual => INSTR_F64_GE,
+            };
+            result.push(op);
+            result.push(INSTR_BLOCK_IF);
+            // In Keith If always return a double
+            result.push(F64_TYPE);
+            result.append(&mut emit_code_for_expression(
+                if_true,
+                symbol_table,
+                arguments,
+                functions,
+            )?);
+            result.push(INSTR_BLOCK_ELSE);
+            result.append(&mut emit_code_for_expression(
+                if_false,
+                symbol_table,
+                arguments,
+                functions,
+            )?);
+            result.push(EXPRESSION_END);
+        }
+        ExpressionNode::SumExpression { value, range } => {
+            let lower = if let ExpressionNode::Number(x) = *range.lower {
+                x
+            } else {
+                return Err("Expecting number at this point".to_string());
+            };
+            let upper = if let ExpressionNode::Number(x) = *range.upper {
+                x
+            } else {
+                return Err("Expecting number at this point".to_string());
+            };
+
+            // We define two local variables:
+            // * 'i' a counter of type i32
+            // * 'result' the total sum, an f64
+            result.push(0x02);
+            result.push(0x01);
+            result.push(I32_TYPE);
+            result.push(0x01);
+            result.push(F64_TYPE);
+
+            // i = 0
+            result.push(INSTR_I32_CONST);
+            result.push(0x00);
+            result.push(INSTR_LOCAL_SET);
+            // The local 0x00 is the function argument
+            result.push(0x01);
+
+            // result = lower
+            result.push(INSTR_F64_CONST);
+            result.append(&mut lower.to_le_bytes().to_vec());
+            result.push(INSTR_LOCAL_SET);
+            result.push(0x02);
+
+            result.push(INSTR_BLOCK_LOOP);
+            result.push(INSTR_VOID);
+
+            // i < range.max
+            result.push(INSTR_LOCAL_GET);
+            result.push(0x01);
+            // cast i into f64
+            result.push(INSTR_F64_CONVERT_I32_S);
+            result.push(INSTR_F64_CONST);
+            result.append(&mut upper.to_le_bytes().to_vec());
+            result.push(INSTR_F64_LT);
+
+            result.push(INSTR_BLOCK_IF);
+            result.push(INSTR_VOID);
+
+            // result += value
+            result.append(&mut emit_code_for_expression(
+                value,
+                symbol_table,
+                arguments,
+                functions,
+            )?);
+            result.push(INSTR_LOCAL_GET);
+            result.push(0x02);
+            result.push(INSTR_F64_ADD);
+
+            // i++
+            result.push(INSTR_LOCAL_GET);
+            result.push(0x01);
+            result.push(INSTR_I32_CONST);
+            result.push(0x01);
+            result.push(INSTR_F64_ADD);
+
+            // break 1, continue loop
+            result.push(INSTR_BR);
+            // break depth
+            result.push(0x01);
+
+            result.push(EXPRESSION_END);
+            result.push(EXPRESSION_END)
+        }
     };
     Ok(result)
 }
 
-fn emit_code_section(root: &ProgramNode, symbol_table: &SymbolTable) -> Result<Vec<u8>, String> {
+fn emit_code_section(
+    root: &ProgramNode,
+    symbol_table: &SymbolTable,
+    functions: &[String],
+) -> Result<Vec<u8>, String> {
     // Has the code for all the functions
     let mut bytes = Vec::new();
     let mut function_count = 0;
     for statement in &root.statements {
-        if let StatementNode::FunctionDeclaration { arguments, name, value } = statement {
+        if let StatementNode::FunctionDeclaration {
+            arguments,
+            name,
+            value,
+        } = statement
+        {
             // function size
             let mut function_bytes = Vec::new();
-            function_bytes.append(&mut emit_code_for_expression(value, symbol_table, arguments)?);
+            function_bytes.append(&mut emit_code_for_expression(
+                value,
+                symbol_table,
+                arguments,
+                functions,
+            )?);
             // end
             function_bytes.push(EXPRESSION_END);
             bytes.append(&mut encode_leb128(function_bytes.len() as u32));
@@ -234,11 +405,23 @@ pub(crate) fn emit_code(node: &ProgramNode, symbol_table: &SymbolTable) -> Resul
     ];
     let mut signatures = Vec::new();
     let mut constants = Vec::new();
+    let mut functions = Vec::new();
+    for function in &symbol_table.builtins {
+        functions.push(function.name().to_string());
+    }
+    for function in &symbol_table.functions {
+        functions.push(function.name.clone());
+    }
     result.append(&mut emit_type_section(symbol_table, &mut signatures)?);
-    result.append(&mut emit_imports_section(node, symbol_table, &signatures, &mut constants)?);
+    result.append(&mut emit_imports_section(
+        node,
+        symbol_table,
+        &signatures,
+        &mut constants,
+    )?);
     result.append(&mut emit_function_section(node, &signatures)?);
     result.append(&mut emit_export_section(node)?);
-    result.append(&mut emit_code_section(node, symbol_table)?);
+    result.append(&mut emit_code_section(node, symbol_table, &functions)?);
 
     Ok(result)
 }

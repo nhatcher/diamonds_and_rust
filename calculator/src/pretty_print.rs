@@ -1,5 +1,5 @@
 use crate::parser::{
-    CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, StatementNode, YRange, SumRange,
+    CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, StatementNode, SumRange, YRange,
 };
 
 pub(crate) fn pretty_print(node: &ProgramNode) -> String {
@@ -49,9 +49,10 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                         pretty_print_sum_range(x_range),
                         pretty_print_y_range(y)
                     )),
-                    None => {
-                        str.push_str(&format!("Plot({fun_str}, {})", pretty_print_sum_range(x_range)))
-                    }
+                    None => str.push_str(&format!(
+                        "Plot({fun_str}, {})",
+                        pretty_print_sum_range(x_range)
+                    )),
                 }
             }
         }
@@ -100,7 +101,7 @@ fn pretty_print_expression(node: &ExpressionNode) -> String {
             format!(
                 "Sum({}, {})",
                 pretty_print_expression(value),
-                pretty_print_sum_range(&range)
+                pretty_print_sum_range(range)
             )
         }
     }
