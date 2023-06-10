@@ -39,8 +39,19 @@ fn encode_leb128(mut value: u32) -> Vec<u8> {
     }
 }
 
+#[inline(always)]
+fn encode_f64(f: f64) -> Vec<u8> {
+    encode_f64(f)
+}
+
+#[inline(always)]
 fn encode_str(str: &str) -> Vec<u8> {
-    todo!()
+    let a = str.as_bytes();
+    let length = a.len() as u32;
+    let mut result = Vec::new();
+    result.append(&mut encode_leb128(length));
+    result.append(&mut a.to_vec());
+    result
 }
 
 fn emit_type_section(
@@ -143,9 +154,31 @@ fn emit_function_section(root: &ProgramNode, signatures: &[u8]) -> Result<Vec<u8
     Ok(result)
 }
 
+fn emit_memory_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
+    let mut bytes = vec![0x01, LIMITS_FLAG_NO_MAX, 0x01]; // one memory, one initial page
+    let mut result = vec![SECTION_MEMORY];
+    let bytes_count = bytes.len() as u32;
+    result.append(&mut encode_leb128(bytes_count));
+    result.append(&mut bytes);
+    Ok(result)
+}
+
 fn emit_export_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
+    // The export section consists of a single function draw(width, height) and the memory
+    let mut bytes = vec![0x02]; // two exports
+    bytes.append(&mut encode_str("memory"));
+    bytes.push(MEMORY_EXPORT_KIND);
+    bytes.push(0x00);
+
+    bytes.append(&mut encode_str("redraw"));
+    bytes.push(FUNCTION_EXPORT_KIND);
+    // TODO: redraw function index
+    bytes.push(0x00);
+    
     let mut result = vec![SECTION_EXPORT];
-    // The export section consists of a single function draw(width, height)
+    let bytes_count = bytes.len() as u32;
+    result.append(&mut encode_leb128(bytes_count));
+    result.append(&mut bytes);
     Ok(result)
 }
 
@@ -159,7 +192,7 @@ fn emit_code_for_expression(
     match node {
         ExpressionNode::Number(f) => {
             result.push(INSTR_F64_CONST);
-            result.append(&mut f.to_le_bytes().to_vec());
+            result.append(&mut encode_f64(*f));
         }
         ExpressionNode::Variable(name) => {
             if let Some(index) = arguments.iter().position(|s| s == name) {
@@ -170,7 +203,7 @@ fn emit_code_for_expression(
                 // It's a global, we look up it's value
                 let f = symbol_table.globals[index].value;
                 result.push(INSTR_F64_CONST);
-                result.append(&mut f.to_le_bytes().to_vec());
+                result.append(&mut encode_f64(f));
             } else if let Some(index) = symbol_table.sliders.iter().position(|s| &s.name == name) {
                 // It's a slider
                 result.push(INSTR_GLOBAL_GET);
@@ -354,7 +387,11 @@ fn emit_code_for_expression(
             result.push(0x01);
 
             result.push(EXPRESSION_END);
-            result.push(EXPRESSION_END)
+            result.push(EXPRESSION_END);
+
+            // return result
+            result.push(INSTR_LOCAL_GET);
+            result.push(0x02);
         }
     };
     Ok(result)
@@ -390,10 +427,59 @@ fn emit_code_section(
             function_count += 1;
         }
     }
+    let mut plot_function_count = 0;
+    // Now we define the function main(width, height)
+    for statement in &root.statements {
+        if let StatementNode::PlotStatement { functions: plot_functions, x_range, y_range } = statement {
+            let arguments = &vec![x_range.variable_name.to_string()];
+            for function in plot_functions {
+                let mut function_bytes = Vec::new();
+                function_bytes.append(&mut emit_code_for_expression(
+                    &function.value,
+                    symbol_table,
+                    arguments,
+                    functions,
+                )?);
+                // end
+                function_bytes.push(EXPRESSION_END);
+                bytes.append(&mut encode_leb128(function_bytes.len() as u32));
+                bytes.append(&mut function_bytes);
+                plot_function_count += 1;
+            }
+            {
+                // last function, the main function
+                let mut function_bytes = Vec::new();
+                let width = 1.0;
+                let x0 = if let ExpressionNode::Number(x0) = *x_range.lower {
+                    x0
+                } else {
+                    return Err("Expected number at this point".to_string());
+                };
+                let x1 = if let ExpressionNode::Number(x1) = *x_range.upper {
+                    x1
+                } else {
+                    return Err("Expected number at this point".to_string());
+                };
+                // local variable step
+
+                /*let step = (x1 - x0) / width;
+                let n = (width / step).ceil() as i32;
+                for i in 0..n {
+
+                }*/
+
+                function_bytes.push(EXPRESSION_END);
+                bytes.append(&mut encode_leb128(function_bytes.len() as u32));
+                bytes.append(&mut function_bytes);
+                plot_function_count += 1;
+            }
+
+        }
+    }
     let mut result = vec![SECTION_CODE];
     let bytes_count = bytes.len() as u32;
     result.append(&mut encode_leb128(bytes_count));
-    result.append(&mut encode_leb128(function_count));
+    result.append(&mut encode_leb128(function_count+plot_function_count));
     result.append(&mut bytes);
     Ok(result)
 }
@@ -420,6 +506,7 @@ pub(crate) fn emit_code(node: &ProgramNode, symbol_table: &SymbolTable) -> Resul
         &mut constants,
     )?);
     result.append(&mut emit_function_section(node, &signatures)?);
+    result.append(&mut emit_memory_section(node)?);
     result.append(&mut emit_export_section(node)?);
     result.append(&mut emit_code_section(node, symbol_table, &functions)?);
 

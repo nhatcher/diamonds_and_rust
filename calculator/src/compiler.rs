@@ -93,14 +93,14 @@ pub fn compile_node(node: &Node) -> Result<Vec<u8>, ParserError> {
     match node {
         Node::Number(f) => {
             let mut result = vec![0x44];
-            result.append(&mut f.to_le_bytes().to_vec());
+            result.append(&mut encode_f64(f));
             Ok(result)
         }
         Node::Variable(s) => {
             if s == "PI" {
                 let f = std::f64::consts::PI;
                 let mut result = vec![0x44];
-                result.append(&mut f.to_le_bytes().to_vec());
+                result.append(&mut encode_f64(f));
                 Ok(result)
             } else {
                 Err(ParserError {

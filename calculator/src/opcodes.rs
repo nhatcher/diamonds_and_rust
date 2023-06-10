@@ -2,6 +2,7 @@
 pub(crate) const SECTION_TYPE: u8 = 0x01;
 pub(crate) const SECTION_IMPORTS: u8 = 0x02;
 pub(crate) const SECTION_FUNCTION: u8 = 0x03;
+pub(crate) const SECTION_MEMORY: u8 = 0x05;
 pub(crate) const SECTION_EXPORT: u8 = 0x07;
 pub(crate) const SECTION_CODE: u8 = 0x0a;
 
@@ -51,3 +52,10 @@ pub(crate) const INSTR_F64_GE: u8 = 0x66;
 // descriptors
 pub(crate) const FUNCTION_DESCRIPTOR: u8 = 0x01;
 pub(crate) const CONSTANT_DESCRIPTOR: u8 = 0x03;
+
+// limits
+pub(crate) const LIMITS_FLAG_NO_MAX: u8 = 0x00;
+
+// export types
+pub(crate) const FUNCTION_EXPORT_KIND: u8 = 0x00;
+pub(crate) const MEMORY_EXPORT_KIND: u8 = 0x02;
