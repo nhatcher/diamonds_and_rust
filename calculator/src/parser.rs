@@ -357,7 +357,6 @@ impl Parser {
             self.expect_token(Token::Comma)?;
             let upper = Box::new(self.parse_expression()?);
             self.expect_token(Token::CloseBrace)?;
-            self.expect_token(Token::CloseParenthesis)?;
             SumRange {
                 variable_name,
                 lower,

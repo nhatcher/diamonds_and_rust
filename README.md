@@ -341,6 +341,28 @@ For instance:
 
 First byte is the section number, second is the number of bytes in the body of the section, third says we only define one function and the last byte says that the function is of type (`0x02`) the third type declared in the type section.
 
+### 0x05: Memory section
+
+WebAssembly memory consist of a simple linear memory of a number of 'pages' each of 64KiB. That is just a series of bytes that could be interpreted as numbers, booleans, strings or other more complex types. A WebAssembly program can use that memory in anyway it pleases. It can be shared with the host (imported), can be exported or can be private.
+
+For instance the following bytes define 1 memory of 1 page:
+
+```
+0x05, // memory section
+0x03, // 3 bytes
+0x01, // We have one memory (multiple memories will be available soon)
+0x00, // There is no upper limit to the number of pages it can grow
+0x01  // We start with 1 page (64KiB)
+```
+
+There are further instructions to load and store numbers (i32, i64, f32, f64) from and to a memory address. For instance:
+
+```
+0x2b, 0x00, 0x08
+```
+
+
+
 ### 0x06: Global section
 
 This is a list of the global variables. The runtime will have read access and maybe write access to these variables.

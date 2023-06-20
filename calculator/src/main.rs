@@ -35,7 +35,7 @@ fn main() {
                 println!("{}", pretty_print(&program));
                 println!("{:?}", code);
             }
-            Err(_error) => println!("Failed!"),
+            Err(error) => println!("Failed! {}", error),
         },
         Err(error) => println!("Failed: {:?}", error),
     }

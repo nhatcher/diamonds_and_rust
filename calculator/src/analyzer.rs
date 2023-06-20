@@ -31,9 +31,9 @@ pub struct Function {
 }
 
 pub(crate) struct Context<'a> {
-    globals: &'a Vec<Global>,
-    functions: &'a Vec<Function>,
-    locals: &'a Vec<String>,
+    pub globals: &'a Vec<Global>,
+    pub functions: &'a Vec<Function>,
+    pub locals: &'a Vec<String>,
 }
 
 pub(crate) struct SymbolTable {
@@ -44,10 +44,25 @@ pub(crate) struct SymbolTable {
 }
 
 fn is_name_new(name: &str, context: &Context) -> bool {
-    todo!()
+    for global in context.globals {
+        if global.name == name {
+            return false;
+        }
+    }
+    for function in context.functions {
+        if function.name == name {
+            return false;
+        }
+    }
+    for local in context.locals {
+        if local == name {
+            return false;
+        }
+    }
+    true
 }
 
-// Returns a list of the sen imported functions
+// Returns a list of the used imported functions
 fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Builtin>> {
     let mut builtins = Vec::new();
     // Check that an expression is valid
@@ -57,9 +72,9 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
         ExpressionNode::Number(_) => {}
         ExpressionNode::Variable(name) => {
             // check that variable has not been defined
-            if !is_name_new(name, context) {
+            if is_name_new(name, context) {
                 return Err(SemanticError {
-                    message: format!("Variable already exist: '{name}'"),
+                    message: format!("Undefined variable: '{name}'"),
                 }
                 .into());
             }
@@ -271,6 +286,11 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                 for function in function_list {
                     builtins.append(&mut analyze_expression(&function.value, context)?);
                 }
+                let minimum = evaluate_in_context(&x_range.lower, context)?;
+                let maximum = evaluate_in_context(&x_range.upper, context)?;
+                *x_range.lower = ExpressionNode::Number(minimum);
+                *x_range.upper = ExpressionNode::Number(maximum);
+                
                 if let Some(range) = y_range {
                     let context = &Context {
                         globals: &globals,

@@ -1,9 +1,16 @@
+use std::collections::HashMap;
+
 use crate::{
     analyzer::SymbolTable,
     parser::{Comparator, ExpressionNode, Operator, ProgramNode, StatementNode, UnaryOperator},
 };
 
 use crate::opcodes::*;
+
+struct Stack {
+    pointer: u32,
+    variables: HashMap<String, u32>,
+}
 
 // fn encode_leb128(value: u32) -> Vec<u8> {
 //     fn encode(i: u32, r: &[u8]) -> Vec<u8> {
@@ -41,7 +48,7 @@ fn encode_leb128(mut value: u32) -> Vec<u8> {
 
 #[inline(always)]
 fn encode_f64(f: f64) -> Vec<u8> {
-    encode_f64(f)
+    f.to_le_bytes().to_vec()
 }
 
 #[inline(always)]
@@ -154,6 +161,34 @@ fn emit_function_section(root: &ProgramNode, signatures: &[u8]) -> Result<Vec<u8
     Ok(result)
 }
 
+fn emit_global_section(node: &ProgramNode) -> Result<Vec<u8>, String> {
+    let mut bytes = Vec::new();
+    let heap_base = 8 * 1024 * 1024;
+
+    // Two globals
+    bytes.push(0x02);
+
+    // heap base (index 0, immutable)
+    bytes.push(I32_TYPE);
+    bytes.push(CONSTANT_IMMUTABLE);
+    bytes.push(INSTR_I32_CONST);
+    bytes.append(&mut encode_leb128(heap_base));
+    bytes.push(EXPRESSION_END);
+
+    // stack pointer (index 1, mutable)
+    bytes.push(I32_TYPE);
+    bytes.push(CONSTANT_MUTABLE);
+    bytes.push(INSTR_I32_CONST);
+    bytes.append(&mut encode_leb128(heap_base));
+    bytes.push(EXPRESSION_END);
+
+    let mut result = vec![SECTION_GLOBAL];
+    result.append(&mut encode_leb128(bytes.len() as u32));
+    result.append(&mut bytes);
+
+    Ok(result)
+}
+
 fn emit_memory_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
     let mut bytes = vec![0x01, LIMITS_FLAG_NO_MAX, 0x01]; // one memory, one initial page
     let mut result = vec![SECTION_MEMORY];
@@ -174,7 +209,7 @@ fn emit_export_section(_node: &ProgramNode) -> Result<Vec<u8>, String> {
     bytes.push(FUNCTION_EXPORT_KIND);
     // TODO: redraw function index
     bytes.push(0x00);
-    
+
     let mut result = vec![SECTION_EXPORT];
     let bytes_count = bytes.len() as u32;
     result.append(&mut encode_leb128(bytes_count));
@@ -187,6 +222,7 @@ fn emit_code_for_expression(
     symbol_table: &SymbolTable,
     arguments: &[String],
     functions: &[String],
+    locals: &Stack,
 ) -> Result<Vec<u8>, String> {
     let mut result = Vec::new();
     match node {
@@ -213,8 +249,10 @@ fn emit_code_for_expression(
             };
         }
         ExpressionNode::BinaryOp { op, left, right } => {
-            let mut lhs = emit_code_for_expression(left, symbol_table, arguments, functions)?;
-            let mut rhs = emit_code_for_expression(right, symbol_table, arguments, functions)?;
+            let mut lhs =
+                emit_code_for_expression(left, symbol_table, arguments, functions, locals)?;
+            let mut rhs =
+                emit_code_for_expression(right, symbol_table, arguments, functions, locals)?;
             result.append(&mut lhs);
             result.append(&mut rhs);
             match op {
@@ -239,6 +277,7 @@ fn emit_code_for_expression(
                     symbol_table,
                     arguments,
                     functions,
+                    locals,
                 )?),
                 UnaryOperator::Minus => {
                     result.append(&mut emit_code_for_expression(
@@ -246,6 +285,7 @@ fn emit_code_for_expression(
                         symbol_table,
                         arguments,
                         functions,
+                        locals,
                     )?);
                     result.push(INSTR_F64_CONST);
                     let minus_one: f64 = -1.0;
@@ -261,6 +301,7 @@ fn emit_code_for_expression(
                     symbol_table,
                     arguments,
                     functions,
+                    locals,
                 )?);
             }
             result.push(INSTR_FUNCTION_CALL);
@@ -280,12 +321,14 @@ fn emit_code_for_expression(
                 symbol_table,
                 arguments,
                 functions,
+                locals,
             )?);
             result.append(&mut emit_code_for_expression(
                 &condition.right,
                 symbol_table,
                 arguments,
                 functions,
+                locals,
             )?);
             let op = match condition.op {
                 Comparator::Equal => INSTR_F64_EQ,
@@ -304,6 +347,7 @@ fn emit_code_for_expression(
                 symbol_table,
                 arguments,
                 functions,
+                locals,
             )?);
             result.push(INSTR_BLOCK_ELSE);
             result.append(&mut emit_code_for_expression(
@@ -311,6 +355,7 @@ fn emit_code_for_expression(
                 symbol_table,
                 arguments,
                 functions,
+                locals,
             )?);
             result.push(EXPRESSION_END);
         }
@@ -327,35 +372,45 @@ fn emit_code_for_expression(
             };
 
             // We define two local variables:
-            // * 'i' a counter of type i32
-            // * 'result' the total sum, an f64
-            result.push(0x02);
-            result.push(0x01);
-            result.push(I32_TYPE);
-            result.push(0x01);
-            result.push(F64_TYPE);
+            // * 'i' a counter of type i32 (4 bytes)
+            // * 'result' the total sum, an f64 (8 bytes)
+            // So we make space in the stack for those two variables
+            let stack_pointer = locals.pointer - 12;
+            let mut variables = locals.variables.clone();
 
-            // i = 0
+            // let i = 0
+            result.push(INSTR_I32_CONST);
+            result.append(&mut encode_leb128(stack_pointer)); // address
+                                                              // value
             result.push(INSTR_I32_CONST);
             result.push(0x00);
-            result.push(INSTR_LOCAL_SET);
-            // The local 0x00 is the function argument
-            result.push(0x01);
+            result.push(MEMORY_I32_STORE);
+            result.push(0x02); // alignment
+            result.push(0x00); // offset
+            variables.insert(range.variable_name.clone(), stack_pointer);
 
-            // result = lower
+            // let result = lower
+            result.push(INSTR_I32_CONST);
+            result.append(&mut encode_leb128(stack_pointer));
+            // value
             result.push(INSTR_F64_CONST);
             result.append(&mut lower.to_le_bytes().to_vec());
-            result.push(INSTR_LOCAL_SET);
-            result.push(0x02);
+            result.push(MEMORY_F64_STORE);
+            result.push(0x03); // alignment
+            result.push(0x04); // offset
+            variables.insert(format!("_sum_{}", range.variable_name), stack_pointer);
 
             result.push(INSTR_BLOCK_LOOP);
             result.push(INSTR_VOID);
 
             // i < range.max
-            result.push(INSTR_LOCAL_GET);
-            result.push(0x01);
+            result.append(&mut encode_leb128(stack_pointer));
+            result.push(MEMORY_I32_LOAD);
+            result.push(0x02);
+            result.push(0x00);
             // cast i into f64
             result.push(INSTR_F64_CONVERT_I32_S);
+
             result.push(INSTR_F64_CONST);
             result.append(&mut upper.to_le_bytes().to_vec());
             result.push(INSTR_F64_LT);
@@ -363,23 +418,47 @@ fn emit_code_for_expression(
             result.push(INSTR_BLOCK_IF);
             result.push(INSTR_VOID);
 
-            // result += value
+            // sum += value
             result.append(&mut emit_code_for_expression(
                 value,
                 symbol_table,
                 arguments,
                 functions,
+                &Stack {
+                    pointer: stack_pointer,
+                    variables,
+                },
             )?);
+
+            // Get sum from memory
+            result.append(&mut encode_leb128(stack_pointer + 4));
+            result.push(MEMORY_F64_LOAD);
+            result.push(0x02);
+            result.push(0x00);
+
+            // Add it
+            result.push(INSTR_F64_ADD);
+
+            // Put it back in memory
+            result.append(&mut encode_leb128(stack_pointer + 4));
+            result.push(MEMORY_F64_STORE);
+            result.push(0x02);
+            result.push(0x00);
+
             result.push(INSTR_LOCAL_GET);
             result.push(0x02);
             result.push(INSTR_F64_ADD);
 
             // i++
-            result.push(INSTR_LOCAL_GET);
-            result.push(0x01);
+            // Get i
+            result.append(&mut encode_leb128(stack_pointer));
+            result.push(MEMORY_I32_LOAD);
+            result.push(0x02);
+            result.push(0x00);
+
             result.push(INSTR_I32_CONST);
-            result.push(0x01);
-            result.push(INSTR_F64_ADD);
+            result.push(1);
+            result.push(INSTR_I32_ADD);
 
             // break 1, continue loop
             result.push(INSTR_BR);
@@ -405,6 +484,10 @@ fn emit_code_section(
     // Has the code for all the functions
     let mut bytes = Vec::new();
     let mut function_count = 0;
+    let stack = &Stack {
+        pointer: 8 * 1024 * 1024,
+        variables: HashMap::new(),
+    };
     for statement in &root.statements {
         if let StatementNode::FunctionDeclaration {
             arguments,
@@ -419,6 +502,7 @@ fn emit_code_section(
                 symbol_table,
                 arguments,
                 functions,
+                stack,
             )?);
             // end
             function_bytes.push(EXPRESSION_END);
@@ -428,9 +512,14 @@ fn emit_code_section(
         }
     }
     let mut plot_function_count = 0;
-    // Now we define the function main(width, height)
+    // Now we define the function redraw(width, height)
     for statement in &root.statements {
-        if let StatementNode::PlotStatement { functions: plot_functions, x_range, y_range } = statement {
+        if let StatementNode::PlotStatement {
+            functions: plot_functions,
+            x_range,
+            y_range,
+        } = statement
+        {
             let arguments = &vec![x_range.variable_name.to_string()];
             for function in plot_functions {
                 let mut function_bytes = Vec::new();
@@ -439,6 +528,7 @@ fn emit_code_section(
                     symbol_table,
                     arguments,
                     functions,
+                    stack,
                 )?);
                 // end
                 function_bytes.push(EXPRESSION_END);
@@ -449,7 +539,6 @@ fn emit_code_section(
             {
                 // last function, the main function
                 let mut function_bytes = Vec::new();
-                let width = 1.0;
                 let x0 = if let ExpressionNode::Number(x0) = *x_range.lower {
                     x0
                 } else {
@@ -461,25 +550,118 @@ fn emit_code_section(
                     return Err("Expected number at this point".to_string());
                 };
                 // local variable step
+                /*
+                We want to set the results in the memory
+                * n values for each function
+                * then the settings (color and thickness)
 
-                /*let step = (x1 - x0) / width;
+                let step = (x1 - x0) / width;
                 let n = (width / step).ceil() as i32;
-                for i in 0..n {
+                let mut max_y = function[0](x0);
+                let mut min_y = max_y;
+                for function_index in 0..plot_function_count {
+                    for i in 0..n {
+                        let value = function[function_index](x0+step*i);
+                        store(value, plot_function_count*n*8+i*8);
+                        max_y = max(max_y, value);
+                        min_y = min(min_y, value);
+                    }
+                }
+                */
 
-                }*/
+                // first locals: step, n, max_y, min_y and i
+                // That is five variables, three f64 and two i32
+                function_bytes.push(0x05);
+                function_bytes.push(0x03);
+                function_bytes.push(F64_TYPE);
+                function_bytes.push(0x02);
+                function_bytes.push(I32_TYPE);
 
+                // 1. initialize variables
+                // step = (x1 - x0) / width
+                function_bytes.push(INSTR_F64_CONST);
+                function_bytes.append(&mut encode_f64(x1));
+                function_bytes.append(&mut encode_f64(x0));
+                function_bytes.push(INSTR_F64_SUB);
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(0);
+                function_bytes.push(INSTR_F64_DIV);
+                function_bytes.push(INSTR_LOCAL_SET);
+                let local_step = 2;
+                function_bytes.push(local_step);
+
+                // max_y = function[0](x0);
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(0);
+                function_bytes.push(INSTR_FUNCTION_CALL);
+                // FIXME: What is the right function call index?
+                function_bytes.push(0x00);
+                function_bytes.push(INSTR_LOCAL_SET);
+                let local_max_y = 3;
+                function_bytes.push(local_max_y); // max_y
+
+                // min_y = max_y
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(0);
+                function_bytes.push(INSTR_LOCAL_SET);
+                let local_min_y = 4;
+                function_bytes.push(local_min_y);
+
+                // n = (width / step).ceil() as i32
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(0);
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(2);
+                function_bytes.push(INSTR_F64_DIV);
+                function_bytes.push(INSTR_F64_CEIL);
+                function_bytes.push(INSTR_I32_TRUNC_F64_S);
+                function_bytes.push(INSTR_LOCAL_SET);
+                let local_n = 5;
+                function_bytes.push(local_n);
+
+                // i = 0
+                function_bytes.push(INSTR_F64_CONST);
+                function_bytes.push(0x00);
+                function_bytes.push(INSTR_LOCAL_SET);
+                let local_i = 6;
+                function_bytes.push(local_i);
+
+                // function loop (i=0..plot_function_count)
+                function_bytes.push(INSTR_BLOCK_LOOP);
+                function_bytes.push(INSTR_VOID);
+
+                function_bytes.push(INSTR_F64_CONST);
+                function_bytes.push(0x00);
+                function_bytes.push(INSTR_LOCAL_SET);
+                let local_j = 7;
+                function_bytes.push(local_j);
+
+                // inner loop (j=0..n)
+                function_bytes.push(INSTR_BLOCK_LOOP);
+                function_bytes.push(INSTR_VOID);
+
+                // x = x0 + j*step;
+                function_bytes.append(&mut encode_f64(x0));
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(local_j);
+                function_bytes.push(INSTR_LOCAL_GET);
+                function_bytes.push(local_step);
+                function_bytes.push(INSTR_F64_MUL);
+                function_bytes.push(INSTR_F64_ADD);
+
+                function_bytes.push(EXPRESSION_END);
+                // j++
                 function_bytes.push(EXPRESSION_END);
                 bytes.append(&mut encode_leb128(function_bytes.len() as u32));
                 bytes.append(&mut function_bytes);
                 plot_function_count += 1;
             }
-
         }
     }
     let mut result = vec![SECTION_CODE];
     let bytes_count = bytes.len() as u32;
     result.append(&mut encode_leb128(bytes_count));
-    result.append(&mut encode_leb128(function_count+plot_function_count));
+    result.append(&mut encode_leb128(function_count + plot_function_count));
     result.append(&mut bytes);
     Ok(result)
 }
@@ -506,6 +688,7 @@ pub(crate) fn emit_code(node: &ProgramNode, symbol_table: &SymbolTable) -> Resul
         &mut constants,
     )?);
     result.append(&mut emit_function_section(node, &signatures)?);
+    result.append(&mut emit_global_section(node)?);
     result.append(&mut emit_memory_section(node)?);
     result.append(&mut emit_export_section(node)?);
     result.append(&mut emit_code_section(node, symbol_table, &functions)?);

@@ -3,6 +3,7 @@ pub(crate) const SECTION_TYPE: u8 = 0x01;
 pub(crate) const SECTION_IMPORTS: u8 = 0x02;
 pub(crate) const SECTION_FUNCTION: u8 = 0x03;
 pub(crate) const SECTION_MEMORY: u8 = 0x05;
+pub(crate) const SECTION_GLOBAL: u8 = 0x06;
 pub(crate) const SECTION_EXPORT: u8 = 0x07;
 pub(crate) const SECTION_CODE: u8 = 0x0a;
 
@@ -25,14 +26,27 @@ pub(crate) const INSTR_F64_CONST: u8 = 0x44;
 pub(crate) const INSTR_I32_CONST: u8 = 0x41;
 pub(crate) const INSTR_LOCAL_SET: u8 = 0x21;
 pub(crate) const INSTR_LOCAL_GET: u8 = 0x20;
+pub(crate) const INSTR_GLOBAL_SET: u8 = 0x22;
 pub(crate) const INSTR_GLOBAL_GET: u8 = 0x23;
+pub(crate) const INSTR_I32_ADD: u8 = 0x6a;
+pub(crate) const INSTR_I32_SUB: u8 = 0x6b;
 pub(crate) const INSTR_F64_ADD: u8 = 0xa0;
 pub(crate) const INSTR_F64_SUB: u8 = 0xa1;
 pub(crate) const INSTR_F64_MUL: u8 = 0xa2;
 pub(crate) const INSTR_F64_DIV: u8 = 0xa3;
 pub(crate) const INSTR_FUNCTION_CALL: u8 = 0x10;
+pub(crate) const INSTR_F64_CEIL: u8 = 0x8d;
 
+// memory
+pub(crate) const MEMORY_I32_LOAD: u8 = 0x28;
+pub(crate) const MEMORY_I32_STORE: u8 = 0x36;
+pub(crate) const MEMORY_F64_LOAD: u8 = 0x2b;
+pub(crate) const MEMORY_F64_STORE: u8 = 0x39;
+
+// converts a signed i32 into an f64
 pub(crate) const INSTR_F64_CONVERT_I32_S: u8 = 0xb7;
+// truncates a F64 into a signed i32
+pub(crate) const INSTR_I32_TRUNC_F64_S: u8 = 0xaa;
 
 pub(crate) const INSTR_BLOCK_IF: u8 = 0x04;
 pub(crate) const INSTR_BLOCK_ELSE: u8 = 0x05;

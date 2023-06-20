@@ -24,7 +24,7 @@ pub struct LexerError {
 
 impl Display for LexerError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Lexer error: '{}'", self.message)
     }
 }
 
@@ -37,7 +37,7 @@ pub(crate) struct SemanticError {
 
 impl Display for SemanticError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Semantic error: '{}'", self.message)
     }
 }
 
@@ -50,7 +50,7 @@ pub(crate) struct EvaluationError {
 
 impl Display for EvaluationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Evaluation error: '{}'", self.message)
     }
 }
 
