@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::errors::{LexerError, ParserError, Result};
 use crate::{lexer::Lexer, tokens::Token};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Operator {
     Plus,
     Minus,
@@ -48,8 +48,8 @@ impl Display for Comparator {
 }
 
 pub struct Options {
-    color: String,
-    width: u32,
+    pub color: String,
+    pub width: u32,
 }
 
 impl Default for Options {
@@ -140,7 +140,7 @@ pub enum ExpressionNode {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UnaryOperator {
     Plus,
     Minus,
@@ -366,8 +366,8 @@ impl Parser {
 
         // y-range
         let y_range = if self.next_token == Token::Comma {
-            self.advance_tokens();
             self.expect_token(Token::Comma)?;
+            self.expect_token(Token::OpenBrace)?;
             let minimum = self.parse_expression()?;
 
             self.expect_token(Token::Comma)?;

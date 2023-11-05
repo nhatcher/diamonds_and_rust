@@ -36,7 +36,7 @@ pub(crate) fn evaluate_in_context(expr: &ExpressionNode, context: &Context) -> R
             let r = evaluate_in_context(right, context)?;
             match op {
                 UnaryOperator::Plus => Ok(r),
-                UnaryOperator::Minus => Ok(r),
+                UnaryOperator::Minus => Ok(-r),
             }
         },
         ExpressionNode::FunctionCall { .. } => {

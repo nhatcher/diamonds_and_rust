@@ -10,6 +10,8 @@ mod opcodes;
 mod parser;
 mod pretty_print;
 mod tokens;
+#[cfg(test)]
+mod test;
 
 use std::{env, fs};
 
@@ -37,6 +39,6 @@ fn main() {
             }
             Err(error) => println!("Failed! {}", error),
         },
-        Err(error) => println!("Failed: {:?}", error),
+        Err(error) => println!("Failed: {}", error),
     }
 }

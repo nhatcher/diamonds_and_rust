@@ -91,12 +91,7 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
             // We need to check:
             // 1. function exists
             // 2. arguments are correct
-            if !is_name_new(name, context) {
-                return Err(SemanticError {
-                    message: format!("Variable already exist: '{name}'"),
-                }
-                .into());
-            }
+
             // In Keith a function that starts with a capital letter like `Sin` or `Tan` is builtin,
             // functions that start with a lowercase letter are user defined
             let arg_count = args.len() as u8;
@@ -117,6 +112,13 @@ fn analyze_expression(expr: &ExpressionNode, context: &Context) -> Result<Vec<Bu
                 }
                 return Err(SemanticError {
                     message: format!("Unrecognized function: '{name}'"),
+                }
+                .into());
+            }
+
+            if is_name_new(name, context) {
+                return Err(SemanticError {
+                    message: format!("Undefined function: '{name}'"),
                 }
                 .into());
             }

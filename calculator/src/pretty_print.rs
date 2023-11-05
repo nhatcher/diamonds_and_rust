@@ -1,3 +1,5 @@
+use std::option;
+
 use crate::parser::{
     CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, StatementNode, SumRange, YRange,
 };
@@ -19,11 +21,12 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                 maximum_value,
             } => {
                 str.push_str(&format!(
-                    "{name} = {{ {}, {}, {} }}",
+                    "{name} = {{ {}, {}, {} }};",
                     pretty_print_expression(default_value),
                     pretty_print_expression(minimum_value),
                     pretty_print_expression(maximum_value)
                 ));
+                str.push(';');
             }
             StatementNode::FunctionDeclaration {
                 name,
@@ -35,6 +38,7 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                     "{name}({args}) = {}",
                     pretty_print_expression(value)
                 ));
+                str.push(';');
             }
             StatementNode::PlotStatement {
                 functions,
@@ -42,7 +46,11 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                 y_range,
             } => {
                 let fun_str: Vec<String> = functions.iter().map(pretty_print_function).collect();
-                let fun_str = fun_str.join(",");
+                let fun_str = if functions.len() > 1 {
+                    format!("[{}]", fun_str.join(", "))
+                } else {
+                    fun_str.join(", ")
+                };
                 match y_range {
                     Some(y) => str.push_str(&format!(
                         "Plot({fun_str}, {}, {})",
@@ -54,6 +62,7 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                         pretty_print_sum_range(x_range)
                     )),
                 }
+                str.push(';');
             }
         }
         str.push('\n');
@@ -62,7 +71,19 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
 }
 
 fn pretty_print_function(node: &PlotFunctionNode) -> String {
-    format!("{{ {} }}", pretty_print_expression(&node.value))
+    let options = &node.options;
+    let mut option_list = Vec::new();
+    if options.color != "black" {
+        option_list.push(format!("color=\"{}\"", options.color));
+    }
+    if options.width != 1 {
+        option_list.push(format!("width={}", options.width));
+    }
+    if option_list.is_empty() {
+        pretty_print_expression(&node.value)
+    } else {
+        format!("{{ {}, {} }}", pretty_print_expression(&node.value), option_list.join(", "))
+    }
 }
 
 fn pretty_print_expression(node: &ExpressionNode) -> String {
@@ -109,7 +130,7 @@ fn pretty_print_expression(node: &ExpressionNode) -> String {
 
 fn pretty_print_sum_range(range: &SumRange) -> String {
     format!(
-        "{{ {}, {}, {} }}",
+        "{{{}, {}, {}}}",
         range.variable_name,
         pretty_print_expression(&range.lower),
         pretty_print_expression(&range.upper)
