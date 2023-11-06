@@ -39,13 +39,13 @@ impl Lexer {
                 '^' => Token::Power,
                 ',' => Token::Comma,
                 '=' => Token::Equal,
-                ';' => Token::SemiColon,
                 '(' => Token::OpenParenthesis,
                 ')' => Token::CloseParenthesis,
                 '[' => Token::OpenBracket,
                 ']' => Token::CloseBracket,
                 '{' => Token::OpenBrace,
                 '}' => Token::CloseBrace,
+                '\n' => Token::NewLine,
                 '<' => {
                     let next_char = self.peek_char();
                     if next_char == Some(&'=') {
@@ -129,7 +129,7 @@ impl Lexer {
 
     fn consume_whitespace(&mut self) {
         while let Some(&char) = self.input_chars.get(self.position) {
-            if !char.is_whitespace() {
+            if !char.is_whitespace() || char == '\n' {
                 break;
             }
             self.position += 1;

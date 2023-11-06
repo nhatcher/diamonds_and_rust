@@ -261,12 +261,16 @@ pub(crate) fn analyze_program(program: &mut ProgramNode) -> Result<SymbolTable> 
                     .into());
                 }
                 seen_names.push(name.clone());
+                let mut locals = arguments.clone();
+                for slider in &sliders {
+                    locals.push(slider.name.clone());
+                }
                 builtins.append(&mut analyze_expression(
                     value,
                     &Context {
                         globals: &globals,
                         functions: &functions,
-                        locals: arguments,
+                        locals: &locals,
                     },
                 )?);
                 functions.push(Function {

@@ -155,9 +155,8 @@ operator       => '+' | '-' | '*' | '/'
 plot_statement => 'Plot' '(' function_list ',' range (',' y_range)? ')'
 range          => '{' Name ',' expression ',' expression '}'
 y_range        => '{' expression, expression  '}'
-function_list  => fn_element | '[' functions ']'
-fn_element     => fn_plot (',' fn_plot)*
-fn_plot        => '{' expression (',' option)* '}'
+function_list  => fn_plot | '[' fn_plot (',' fn_plot)* ']'
+fn_plot        => expression | '{' expression (',' option)* '}'
 fn_option      => Name '=' fn_option_val
 fn_option_val  => Number | StringLiteral
 

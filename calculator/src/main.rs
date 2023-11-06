@@ -28,13 +28,13 @@ fn main() {
     let file_path = &args[1];
     println!("In file {}", file_path);
 
-    let contents = fs::read_to_string(file_path).expect("Filed reading file");
+    let contents = fs::read_to_string(file_path).expect("Failed reading file");
 
     match Parser::parse(&contents) {
-        Ok(mut program) => match analyze_program(&mut program) {
+        Ok(mut ast) => match analyze_program(&mut ast) {
             Ok(symbol_table) => {
-                let code = emit_code(&program, &symbol_table).expect("msg");
-                println!("{}", pretty_print(&program));
+                let code = emit_code(&ast, &symbol_table).expect("Error emitting code");
+                println!("{}", pretty_print(&ast));
                 println!("{:?}", code);
             }
             Err(error) => println!("Failed! {}", error),

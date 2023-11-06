@@ -1,5 +1,3 @@
-use std::option;
-
 use crate::parser::{
     CompareNode, ExpressionNode, PlotFunctionNode, ProgramNode, StatementNode, SumRange, YRange,
 };
@@ -9,10 +7,10 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
     node.statements.iter().for_each(|statement| {
         match statement {
             StatementNode::ConstantAssignment { name, value } => {
-                str.push_str(&format!("{name} = {};", pretty_print_expression(value)));
+                str.push_str(&format!("{name} = {}", pretty_print_expression(value)));
             }
             StatementNode::PrintStatement { argument } => {
-                str.push_str(&format!("Print({});", pretty_print_expression(argument)));
+                str.push_str(&format!("Print({})", pretty_print_expression(argument)));
             }
             StatementNode::Slider {
                 name,
@@ -26,7 +24,6 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                     pretty_print_expression(minimum_value),
                     pretty_print_expression(maximum_value)
                 ));
-                str.push(';');
             }
             StatementNode::FunctionDeclaration {
                 name,
@@ -38,7 +35,6 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                     "{name}({args}) = {}",
                     pretty_print_expression(value)
                 ));
-                str.push(';');
             }
             StatementNode::PlotStatement {
                 functions,
@@ -62,7 +58,6 @@ pub(crate) fn pretty_print(node: &ProgramNode) -> String {
                         pretty_print_sum_range(x_range)
                     )),
                 }
-                str.push(';');
             }
         }
         str.push('\n');
@@ -82,7 +77,11 @@ fn pretty_print_function(node: &PlotFunctionNode) -> String {
     if option_list.is_empty() {
         pretty_print_expression(&node.value)
     } else {
-        format!("{{ {}, {} }}", pretty_print_expression(&node.value), option_list.join(", "))
+        format!(
+            "{{ {}, {} }}",
+            pretty_print_expression(&node.value),
+            option_list.join(", ")
+        )
     }
 }
 

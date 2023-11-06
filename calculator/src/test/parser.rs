@@ -154,7 +154,7 @@ fn compare_statements(left: &StatementNode, right: &StatementNode) -> bool {
 
 #[test]
 fn parses_assign() {
-    let script = "a = -3;";
+    let script = "a = -3";
     let program = Parser::parse(script).unwrap();
     let statements = program.statements;
     assert_eq!(statements.len(), 1);

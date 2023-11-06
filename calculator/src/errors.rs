@@ -10,7 +10,7 @@ pub struct ParserError {
 
 impl Display for ParserError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "Parser error: '{}'", self.message)
     }
 }
 

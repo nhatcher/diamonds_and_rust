@@ -196,11 +196,17 @@ impl Parser {
         Ok(())
     }
 
+    fn advance_new_lines(&mut self) {
+        while self.next_token == Token::NewLine {
+            self.advance_tokens();
+        }
+    }
+
     fn parse_root(&mut self) -> Result<ProgramNode> {
         let mut statements = Vec::new();
         while self.next_token != Token::EoI {
             statements.push(self.parse_statement()?);
-            self.expect_token(Token::SemiColon)?;
+            self.advance_new_lines();
         }
         Ok(ProgramNode { statements })
     }
@@ -447,11 +453,12 @@ impl Parser {
                 | Token::CloseBrace
                 | Token::CloseBracket
                 | Token::CloseParenthesis
-                | Token::SemiColon
                 | Token::LessThan
                 | Token::LessThanOrEqual
                 | Token::Equal
                 | Token::GreaterThan
+                | Token::NotEqual
+                | Token::NewLine
                 | Token::GreaterThanOrEqual => break,
                 Token::Plus => Operator::Plus,
                 Token::Minus => Operator::Minus,
@@ -502,6 +509,10 @@ impl Parser {
             Token::EoI => Err(Box::new(ParserError {
                 position: self.lexer.get_position(),
                 message: "Unexpected end of Input".to_string(),
+            })),
+            Token::NewLine => Err(Box::new(ParserError {
+                position: self.lexer.get_position(),
+                message: "Unexpected new line".to_string(),
             })),
             Token::Number(value) => {
                 self.advance_tokens();
@@ -621,8 +632,7 @@ impl Parser {
             | Token::LessThan
             | Token::GreaterThan
             | Token::LessThanOrEqual
-            | Token::GreaterThanOrEqual
-            | Token::SemiColon => Err(ParserError {
+            | Token::GreaterThanOrEqual => Err(ParserError {
                 position: self.lexer.get_position(),
                 message: format!("Unexpected token: '{}'", next_token),
             }
@@ -633,6 +643,7 @@ impl Parser {
     fn parse_comparator(&mut self) -> Result<Comparator> {
         let result = match self.next_token {
             Token::Equal => Ok(Comparator::Equal),
+            Token::NotEqual => Ok(Comparator::NotEqual),
             Token::LessThan => Ok(Comparator::LessThan),
             Token::LessThanOrEqual => Ok(Comparator::LessThanOrEqual),
             Token::GreaterThan => Ok(Comparator::GreaterThan),
